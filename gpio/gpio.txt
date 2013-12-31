@@ -1,0 +1,84 @@
+﻿	0x7E20 0000  GPFSEL0	GPIO Function Select 0
+	0x7E20 0004  GPFSEL1	GPIO Function Select 1
+	0x7E20 0008  GPFSEL2	GPIO Function Select 2
+	0x7E20 000C  GPFSEL3	GPIO Function Select 3
+	0x7E20 0010  GPFSEL4	GPIO Function Select 4
+	0x7E20 0014  GPFSEL5	GPIO Function Select 5
+	0x7E20 0018  Reserved
+	0x7E20 001C  GPSET0	GPIO Pin Output Set 0
+	0x7E20 0020  GPSET1	GPIO Pin Output Set 1
+	0x7E20 0024  Reserved
+	0x7E20 0028  GPCLR0	GPIO Pin Output Clear 0
+	0x7E20 002C  GPCLR1	GPIO Pin Output Clear 1
+	0x7E20 0030  Reserved
+	0x7E20 0034  GPLEV0	GPIO Pin Level 0
+	0x7E20 0038  GPLEV1	GPIO Pin Level 1
+	0x7E20 003C  Reserved
+	0x7E20 0040  GPEDS0	GPIO Pin Event Detect Status 0
+	0x7E20 0044  GPEDS1	GPIO Pin Event Detect Status 1
+	0x7E20 0048  Reserved
+	0x7E20 004C  GPREN0	GPIO Pin Rising Edge Detect Enable 0
+	0x7E20 0050  GPREN1	GPIO Pin Rising Edge Detect Enable 1
+	0x7E20 0054  Reserved
+	0x7E20 0058  GPFEN0	GPIO Pin Falling Edge Detect Enable 0
+	0x7E20 005C  GPFEN1	GPIO Pin Falling Edge Detect Enable 1
+	0x7E20 0060  Reserved
+	0x7E20 0064  GPHEN0	GPIO Pin High Detect Enable 0
+	0x7E20 0068  GPHEN1	GPIO Pin High Detect Enable 1
+	0x7E20 006C  Reserved
+	0x7E20 0070  GPLEN0	GPIO Pin Low Detect Enable 0
+	0x7E20 0074  GPLEN1	GPIO Pin Low Detect Enable 1
+	0x7E20 0078  Reserved
+	0x7E20 007C  GPAREN0	GPIO Pin Async. Rising Edge Detect 0
+	0x7E20 0080  GPAREN1	GPIO Pin Async. Rising Edge Detect 1
+	0x7E20 0084  Reserved
+	0x7E20 0088  GPAFEN0	GPIO Pin Async. Falling Edge Detect 0
+	0x7E20 008C  GPAFEN1	GPIO Pin Async. Falling Edge Detect 1
+	0x7E20 0090  Reserved
+	0x7E20 0094  GPPUD		GPIO Pin Pull-up/down Enable
+	0x7E20 0098  GPPUDCLK0	GPIO Pin Pull-up/down Enable Clock 0
+	0x7E20 009C  GPPUDCLK1	GPIO Pin Pull-up/down Enable Clock 1
+	0x7E20 00A0  Reserved
+	0x7E20 00B0  Test
+
+GPFSEL0( pin9 - pin0 )
+	R  p9	p8	p7	p6	p6	p4	p3	p2	p1	p0
+	00 000	000	000 000 000 000 000 000 000 000
+		000 -> input
+		001 -> output
+		100 -> alt0
+		101 -> alt1
+		110 -> alt2
+		111 -> alt3
+		011 -> alt4
+		010 -> alt5
+GPFSEL0( pin19 - pin10 )
+GPFSEL0( pin29 - pin20 )
+GPFSEL0( pin39 - pin30 )
+GPFSEL0( pin49 - pin40 )
+GPFSEL0( pin53 - pin50 )
+
+GPPUD		GPIO Pin Pull-up/down Enable
+	内臓プルアップ or プルダウンの指定
+	Unused							PUD
+	000000000000000000000000000000	00
+		00-> none
+		01-> Pull Down
+		10-> Pull Up
+
+P1(Rev2)
+ALT5      |ALT4       |ALT3      |ALT0      |            PIN            |ALT0       |ALT3     |ALT4       |ALT5
+          |           |          |          | 3v      |1     2| 5v      |           |         |           |
+          |           |          |I2C1 SDA  | GPIO_2  |3     4| 5v      |           |         |           |
+          |           |          |I2C1 SCL  | GPIO_3  |5     6| GND     |           |         |           |
+ARM_TDI   |           |          |GPCLK0    | GPIO_4  |7     8| GPIO_14 |UART0 TXD  |         |           |UART1_TXD
+          |           |          |          | GND     |9    10| GPIO_15 |UART0 RXD  |         |           |UART1_RXD
+UART1_RTS |SPI1_CE1_N |UART0_RTS |          | GPIO_17 |11   12| GPIO_18 |PCM_CLK    |         |SPI1_CE0_N |PWM0
+          |ARM_TMS    |SD1_DAT3  |PCM DOUT  | GPIO_27 |13   14| GND     |           |         |           |
+          |ARM_TRST   |SD1_CLK   |          | GPIO_22 |15   16| GPIO_23 |           |SD1_CMD  |ARM_RTCK   |
+          |           |          |          | 3v      |17   18| GPIO_24 |           |SD1_DAT0 |ARM_TDO    |
+          |           |          |SPI0 MOSI | GPIO_10 |19   20| GND     |           |         |           |
+          |           |          |SPI0 MISO | GPIO_9  |21   22| GPIO_25 |           |SD1_DAT1 |ARM_TCK    |
+          |           |          |SPI0 SCLK | GPIO_11 |23   24| GPIO_8  |SPI0 CE0_N |         |           |
+          |           |          |          | GND     |25   26| GPIO_7  |SPIO CE1_N |         |           |
+ 

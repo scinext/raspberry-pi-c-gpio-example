@@ -1,0 +1,92 @@
+﻿データシート p21
+SPIx_CLK		= system_clock / 2*(speed_filed+1)
+system_clock	= 250MHz
+speed_filed		= 0 -> 125MHz
+	
+
+データシート p152	
+0x7E20 4000  SPI Register Map
+
+0x7E20 4000  CS SPI Master Control and Status
+0x7E20 4004  FIFO SPI Master TX and RX FIFOs
+0x7E20 4008  CLK SPI Master Clock Divider
+0x7E20 400c  DLEN SPI Master Data Length
+0x7E20 4010  LTOH SPI LOSSI mode TOH
+0x7E20 4014  DC SPI DMA DREQ Controls
+
+CS	いろいろなフラグ
+bit		初期値(Read/Write)
+26～31 	Reserved
+25		0x0(RW)	LEN_LONG	DMAmodeの時に1byteか32bitのデータを使うか 0->1byte 1->32bit 
+24		0x0(RW)	DMA_LEN		Enable DMA mode in Lossi mode
+23		0x0(RW)	CSPOL2		cs2をアクティブにするhigh,low選択(DMAの時は手動で通常は自動?) 0->low 1->high
+22		0x0(RW)	CSPOL1		cs1 同上
+21		0x0(RW)	CSPOL0		cs0 同上
+20		0x0(W)	RXF			RX Full 0->not full 1->full(読込されないとこれ以上は送受信がされない)
+19		0x0(W)	RXR			RX needs Reading 0->not full又はTA=0でない 1->full 読込むかTA=0でクリアされる
+18		0x1(W)	TXD			TX can accept Data 0->full(これ以上入れれない) 1->not full(最低1byteは空きがある)
+17		0x0(W)	RXD			RX contains Data 0->空 1->1byte以上は入ってる
+16		0x0(W)	DONE		transfer Done 転送の状態 0->進捗中又はTA=0 1->完了 TXにデータを書込むかTA=0でクリア
+15		0x0(RW)	TE_EN		未使用
+14		0x0(RW)	LMONO		未使用
+13		0x0(RW)	LEN			LoSSi enable LoSSiの有効化 0->SPI master 1->LoSSi master
+12		0x1(RW)	REN			Read Enable 読込と書込のどちらか 0->Write 1->Read
+11		0x0(RW)	ADCS		Automatically Deassert Chip Select DMAの時に自動でチップを選ぶか 0->手動 1->自動
+10		0x0(RW)	INTR		Interrupt on RXR RXRの状態で割込みさせるか 0->させない 1->させる(RXRが1の間)
+9		0x0(RW)	INTD		Interrupt on Done 転送完了時の割込み 0->させない 1->させる(DONEが1の間)
+8		0x0(RW)	DMAEN		DMA Enable DMAの有効 0->無効 1->有効(詳細不明 データシートp155)
+7		0x0(RW) TA			Transfer Active
+							0->未転送	全てのCSラインがhigh(CSPOL=0時),RXRとDONEは0
+							1->転送		選んだCSラインが有効化されデータが転送される
+6		0x0(RW)	CSPOL		Chip Select Polarity 選択したCSのラインの有効化? 0->low 1->high
+4-5		0x0(RW) CLEAR		FIFO Clear 00->No action x1->TX FIFOの初期化 1x->RX FIFOの初期化
+							CLEAR及びTAの両方が同じ操作で設定されている場合、
+							新しいフレームが開始される前に、FIFOがクリアされる。 0としてリードバック。(google)
+3		0x0(RW) CPOL		Clock Polarity  クロックの休止状態 0->low 1->high
+2		0x0(RW) CPHA		Clock Phase データの転送を波形のどのタイミングで行うか 0->途中 1->立上り
+0-1		0x0(RW) CS			Chip Select 00->chip0, 01->chip1, 10->chip2, 11->Reserved
+
+FIFO	送信、受信時のバッファに使用
+0-31	0x0(RW)	DATA
+
+CLK		転送用のクロックの設定 SCLK=CoreClock/CDIVになる 0-65536の間
+16～31	Reserved
+0-15	0x0(RW)	CDIV		0～65536
+
+DLEN	送受信時のデータの長さを格納
+16～31	Reserved
+0-15	0x0(RW)	LEN			転送するバイトの数
+
+LTOH	LoSSi時の設定(hold delay)
+4～31	Reserved
+0-3		0x1(RW)	TOH			これは、APBクロックでの出力保持遅延時間を設定します。0の値は1クロックの遅延を引き起こす。(google)
+
+DC
+24-31	0x30(RW)	RPANIC	DMA Read Panic Threshold
+								RX FIFOレベルがこの量より大きいときはいつでも、
+								RX DMAエンジンにパニック信号を生成する。
+16-23	0x20(RW)	RDREQ	DMA Read Request Threshold 
+								RX FIFOレベルがこの量より大きいときはいつでも、RX DMAエンジンにDREQを生成する、
+								（転送が完了しますが、RXFIFOのISNのtemptyたかどうかのRX DREQも生成されます）。
+								(google)
+5-8		0x10(RW)	TPANIC	DMA Write Panic Threshold.
+								TX FIFOのレベルがより少ないか、この量に等しいときはいつでも、
+								TX DMAエンジンにパニック信号を生成する。
+0-7		0x20(RW)	TDREQ	DMA Write Request Threshold.
+								TX FIFOのレベルがより少ないか、この量に等しいときはいつでも、
+								TX DMAエンジンにDREQ信号を生成します。
+
+
+使用
+Polled(ポーリング bcm2835はこの方法っぽい)
+	1.CS, CPOL, CPHA(チップとSPIモードの設定)をしてTAを1にする	
+	2.TXDにデータを書込んだりRXDからデータを読み取る(FIFOレジスタが送信時-TX、受信時-RXになる)
+	3.DONEが1になるまで待機
+	4.TAを0にして完了
+Interrupt(割込み)
+	1.INTR,INTDの設定
+	2.CS, CPOL, CPHA(チップとSPIモードの設定)をしてTAを1にする、最初にデータを書込むためにDONEを1にして割込みを発生させる
+	3.割り込むまで待つ
+	4.DONEならデータの書き込み完了、これ以上送らないならTAを0にしてRXDをRXDが0になるまで読込む
+	5.RXRならデータの受信完了、読込の開始、データを送るなら書き込む
+DMAよくわからん
