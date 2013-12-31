@@ -46,7 +46,7 @@ void DelayArmTimerCounter(unsigned int delayCount)
 	else
 	{
 		while( *(armTimer+ARM_TIMER_COUNTER) < over )
-			usleep(100);
+			usleep(500);
 	}
 	return;
 }

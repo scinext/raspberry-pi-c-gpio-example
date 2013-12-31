@@ -3,10 +3,10 @@
 #define SENSOR_H
 
 //sensorのみの場合とcasで分けるためにわざとここに記述
-#include "../gpio/gpio.h"
-#include "../gpio/gpio-util.h"
-#include "../gpio/gpio-i2c.h"
-#include "../gpio/gpio-arm-timer.h"
+#include "./gpio/gpio.h"
+#include "./gpio/gpio-util.h"
+#include "./gpio/gpio-i2c.h"
+#include "./gpio/gpio-arm-timer.h"
 #include "adConvert.h"
 
 //取得するi2cのアドレス 0x5d->LPS331

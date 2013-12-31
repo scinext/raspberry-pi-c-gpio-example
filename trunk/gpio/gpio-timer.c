@@ -60,10 +60,10 @@ void DelayMicroSecond(unsigned int delayMicroSecond)
 		{
 			//ハイカウンタがカウントされるまで待機
 			while( *(sysTimer+SYS_TIMER_CHI) > hiCounter )
-				usleep(1000);
+				usleep(500);
 		}
 		while( *(sysTimer+SYS_TIMER_CLO) < delayedTime )
-			usleep(1000);
+			usleep(500);
 		
 		//struct timespec sleepTs;
 		//
