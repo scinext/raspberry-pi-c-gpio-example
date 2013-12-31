@@ -17,19 +17,33 @@ int main(int argc, char** argv)
 	InitGpio();	
 	SetPriority(HIGH_PRIO);
 	
-	SpiTest();
+	//SpiTest();
 	//SysTimerTest();
 	//I2cTest();
 	
-	//ArmTimerTest();
+	ArmTimerTest();
 	
 	return 0;
 }
 void ArmTimerTest()
 {
-	InitArmTimer(1);	
+	struct timespec startTs, endTs;
+	int i, sleep;
+	    
+	InitArmTimer(1);
+	sleep = 1000;
+	for(i=0; i<5; i++){
+		Dprintf("Arm Timer Test\n");
+		clock_gettime(CLOCK_MONOTONIC, &startTs);
+		
+		DelayArmTimerCounter(sleep*10);
+		
+		clock_gettime(CLOCK_MONOTONIC, &endTs);
+		TimeDiff(&startTs, &endTs, sleep*1000);
+		//PrintArmTimerRegister();
+	}
+	
 	//PrintArmTimerRegister();
-	//DelayArmMicroSecond(1);
 	
 	//ArmTimerPrecisionTest();
 	UnInitArmTimer();

@@ -6,10 +6,10 @@
 #include <unistd.h>
 
 #define MAIN_INIT
-#include "../gpio/gpio.h"
-#include "../gpio/gpio-util.h"
-#include "../gpio/gpio-i2c.h"
-#include "../gpio/gpio-arm-timer.h"
+#include "./gpio/gpio.h"
+#include "./gpio/gpio-util.h"
+#include "./gpio/gpio-i2c.h"
+#include "./gpio/gpio-arm-timer.h"
 #include "main.h"
 #include "adConvert.h"
 #include "sensor.h"

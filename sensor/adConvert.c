@@ -4,15 +4,14 @@
 //clock_gettime gccで -lrtをつけないとコンパイルエラー
 #include <time.h>
 
-#include "../gpio/gpio.h"
-#include "../gpio/gpio-util.h"
-#include "../gpio/gpio-spi.h"
-#include "../gpio/gpio-timer.h"
-#include "../gpio/gpio-arm-timer.h"
-
-#include "main.h"
+#include "./gpio/gpio.h"
+#include "./gpio/gpio-util.h"
+#include "./gpio/gpio-spi.h"
+#include "./gpio/gpio-timer.h"
+#include "./gpio/gpio-arm-timer.h"
 #include "adConvert.h"
 
+#include "main.h"
 
 //送信時のデータ
 #define START_BIT		1<<2	//S
