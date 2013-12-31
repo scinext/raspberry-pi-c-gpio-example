@@ -1,0 +1,154 @@
+データシート p28～
+BSC(Broadcom Serial Controller)->I2Cのこと
+レジスタのみで転送を行う場合は7bitアドレスモードでスレーブアドレスの指定などは自動で行うはず
+10bitのときはFIFOを開始アドレスから使用しないといけないはず
+
+Rev0->BSC0,	Rev1->BSC1
+0x7E20 5000 BSC0 Register
+0x7E80 4000 BSC1 Register
+0x7E80 5000 BSC2 Register
+
+BSCx + 0x0000 C		Control
+BSCx + 0x0004 S		Status
+BSCx + 0x0008 DLEN	Data Length
+BSCx + 0x000C A		Slave Address
+BSCx + 0x0010 FIFO	Data FIFO
+BSCx + 0x0014 DIV	Clock Divider
+BSCx + 0x0018 DEL	Data Delay
+BSCx + 0x001C CLKT	Clock Stretch Timeout
+
+C Register
+bit		初期値(Read/Write)
+16～31				Reserved
+15		0x00(RW)	I2CEN	I2C Enable 0->無効 1->有効
+11～14				Reserved
+10		0x00(RW)	INTR	interrupt on RX RXの状態によって割込みが発生 0->無効 1->有効 RXRが1の間発生
+9		0x00(RW)	INTT	interrupt on TX TXの状態によって割込みが発生 0->無効 1->有効 TXWが1の間発生
+8		0x00(RW)	INTD	interrupt on DONE DONEの状態によって割込みが発生 0->無効 1->有効 DONEが1の間発生
+7		0x00(RW)	ST		Start Transfer 0->何もしない 1->転送を開始し後0に
+6					Reserved
+4-5		0x00(RW)	CLEAR	FIFO Clear
+						00->何もしない
+						x1->Clear FIFO 
+						1x->Clear FIFO
+							CLEARとSTの両方が同じ操作で設定されている場合、
+							新しいフレームが開始される前に、FIFOがクリアされる。
+							その後0になる。
+							注：2ビットが前のバージョンとの互換性を維持するために使用される。(google)
+1～3				Reserved
+0		0x00(RW)	READ	Read Transfer 0->書込みの転送 1->読込みの転送
+
+S Register
+bit		初期値(Read/Write)
+10～31				Reserved
+9		0x00(RW)	CLKT	Clock Strech Timeout
+							0->エラーなし
+							1->スレーブ(クロックストレッチ)が長すぎる場合タイムアウトが発生
+8		0x00(RW)	ERR		ACK Error 0->エラーなし, 1->指定スレーブアドレスが存在しない
+7		0x00(R)		RXF		FIFO Full 0->not full, 1->full,データの受信中なら読み出されるまでこれ以上受信しない
+6		0x00(R)		TXE		FIFO Empty 0->not empty, 1->empty,データ送信中なら書き込まれるまで送信されない
+5		0x00(R)		RXD		FIFO contains Data 0->empty 1->少なくても1byteのデータがある読み出しでクリアされる
+4		0x01(R)		TXD		FIFO can accept Data 0->full 1->少なくても1byteの空きがある
+3		0x00(R)		RXR		FIFO needs Reading
+							0= FIFOはフルより小さく、読み取りが進行中である。
+							1= FIFOはある以上完全で読み取りが進行中である。
+							FIFOから十分なデータを読み出すことでクリア(google)
+2		0x00(R)		TXW		FIFO needs Writing
+							0= FIFOが少なくとも一杯になると、ライトが進行中である
+							（または十分なデータが送信するために）。
+							1= FIFOはフル少ないし、書き込みが進行中である。
+							FIFOに十分なデータを書き込むことでクリア(google)
+1		0x00(RW)	DONE	Transfer Done 0->転送未完了 1->転送完了1を書き込むとクリア
+0		0x00(R)		TA		Transfer Active 0->未転送 1->転送
+
+DLEN Register
+bit		初期値(Read/Write)
+16～31				Reserved
+0-15	0x00(RW)	DLEN	Data Length
+							データの送受信時に使用するバイト数を指定
+							TA=1 or DONE=1の時に読み取るとまだ送受信するバイト数を返す?
+							TA=0 and DONE=0の時に読み取ると最後に書き込まれたバイト数が返る
+							複数のパケットにわたって使用可能?
+
+A Register
+bit		初期値(Read/Write)
+7～31				Reserved
+0-6		0x00(RW)	ADDR	Slave Address スレーブアドレスの指定
+
+FIFO Register
+bit		初期値(Read/Write)
+8～31				Reserved
+0-7		0x00(RW)	DATA	転送するデータ
+
+DIV Register
+bit		初期値(Read/Write)
+16～31				Reserved
+0-15	0x5DC(RW)	CDIV	Clock Divider SCL=core clock(150MHz)/CDIV
+							core_clkは公称150MHzのです。
+							CDIVが0に設定される場合、除数は32768である。
+							CDIVは常に偶数に切り捨てられます。
+							デフォルト値(dec 1500 hex 0x5DC)は、
+							100kHzのI2Cクロック周波数をもたらすはずである(google)
+
+DEL Register(よくわからん)
+データ遅延レジスタは、データのサンプリング/起動ポイントを微調整しています。
+REDLフィールドは、着信データをサンプリングする前に立ち上がりエッジの後に待機する回数コアクロックを指定します。
+FEDLフィールドは、次のデータビットを出力する前に、立ち下がりエッジの後に待機する回数コアクロックを指定します。
+注：お手入れは、CDIV/2以上の値を設定することにより、誤動作BSCマスターをさせることができるようにFEDLとREDLの値を選択する際に注意する必要があります。
+そのため遅延値は常にCDIV/2以下に設定してください。
+bit		初期値(Read/Write)
+16-31	0x30(RW)	FEDL	Falling Edge Delay
+0-15	0x30(RW)	REDL	Rising Edge Delay
+
+CLKT Register
+bit		初期値(Read/Write)
+16～31				Reserved
+0-15	0x40(RW)	TOUT	Clock Stretch Timeout Value 反応がないと認識するクロック数
+
+
+
+
+
+
+10bitモード時はスレーブアドレスなどを自分で設定する
+http://www.picfun.com/c15.html
+
+RW->Read 1/Write 0
+ACK->受信側からの応答
+
+1-1
+7bitモード  送信側7bit,   受信側1bit
+| A6 | A5 | A4 | A3 | A2 | A1 | A0 | RW | ACK |
+|          スレーブアドレス        |    |     |
+
+1-2
+10bitモード 送信側14bit,  受信側2bit
+| 1 | 1 | 1 | 1 | 0 | A9 | A8 | RW | ACK | A7 | A6 | A5 | A4 | A3 | A2 | A1 | A0 | ACK |
+|   固定パターン    |         |    |     |                                       |     |
+|                   |          10bitのスレーブアドレス                           |     |
+|          スレーブアドレス1       |     |            スレーブアドレス2          |     |
+
+
+送信時
+1. DLENレジスタに書き込むバイト数+1を入れる
+2. FIFOにスレーブアドレスの下位8bitを書き込む
+3. FIFOに送信するデータを書きこむ
+4. Aレジスタに固定パターンとスレーブアドレスの上位2bitを入れたデータを書き
+   CレジスタのREADに0、STに1を入れ転送開始
+
+AはスレーブのACK、それ以外はマスタ側(Slave Address1, 2は1-2を)
+| Slave Address1 | A | Slave Address2 | A | Data(8bit)Write | A | Data(8bit)Write | A |
+
+
+受信時
+1. DLENレジスタに1を書き込む
+2. FIFOにスレーブアドレスの下位8bitを書き込む
+3. Aレジスタに固定パターンとスレーブアドレスの上位2bitを入れたデータを書き
+   CレジスタのREADに0、STに1を入れ転送開始
+4. 転送が開始したのを待って、SレジスタのTAをポーリングする
+5. DLENレジスタに読み込むバイト数を書き込む
+6. CレジスタのREADに1、STに1を設定、読み取り開始
+   READが1になってるのでSlaveAddresが前回と変わる
+
+AはスレーブのACK、それ以外はマスタ側(Slave Address1, 2は1-2を)
+| Slave Address1 | A | Slave Address2 | A | Slave Addres1-2 | A | Data(8bit)Read | A | Data(8bit)Read | A |
