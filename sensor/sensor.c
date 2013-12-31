@@ -39,7 +39,6 @@ int GetLux()
 	int firstADC, secondADC, avgADC;
 	int i, j;
 	int quantity = 5;
-	int eachSleep;
 	
 	int range[] = {
 		20, 50, 100, 500,				//us
@@ -92,13 +91,13 @@ int GetLux()
 		}
 		if( j > quantity )
 		{
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t  sum adc \t %u, ad \t %f\n", avgADC, avgAD);
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tsum\tadc\t%u\tad\t%f\n", avgADC, avgAD);
 			//平均値を求めるため
 			//差分のため全体の個数-1で平均値に
 			--quantity;
 			avgAD /= quantity;
 			avgADC /= quantity;
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t  avg adc \t %u, ad \t %f\n", avgADC, avgAD);
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tavg\tadc\t%u\tad\t%f\n", avgADC, avgAD);
 			
 			break;
 		}
@@ -107,7 +106,8 @@ int GetLux()
 	if( avgADC == 0 )
 		return 0;
 	
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t  %u us = %f,   1 us = %f\n", range[i], avgAD, avgAD/range[i]);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t%uus\t%f\n", range[i], avgAD);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t1us\t%f\n", avgAD/range[i]);
 	// Vc(V)=(I/C)*t
 	// t(s)=(Vc*C)/I
 	// I(A)=(Vc*C)/t	I(A)=(Vc(mV) * C(uF)) / t(us)
@@ -115,11 +115,11 @@ int GetLux()
 	//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "I(A) = %f,  I(uA) = %f\n", a, a*1e+6);
 
 	a = (((avgAD/range[i])*1e-3)*0.47e-6)/(1e-6) * 1e+6;
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t  I(uA) = %f\n", a);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tI(uA)\t%f\n", a);
 
 	//100Luxで46uA(5v), 1uAで2.17Lux
 	lux = a * 2.17;
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t  Lux      :  %f\n", lux);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tLux\t%f\n", lux);
 
 	lux += 0.05;
 	return (int)(lux*FLOAT_SCALE);
@@ -139,7 +139,7 @@ int GetLuxOhm(int ohm)
 
 	DelayMicroSecond(sleepTime);
 	adc = GetADCH(ch, &ad);
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t  ohme   adc = %8d    ad = %f\n", adc, ad);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tohm\tadc\t%8d\tad\t%f\n", adc, ad);
 
 	GPIO_CLR(pin);
 
@@ -147,12 +147,12 @@ int GetLuxOhm(int ohm)
 	//E=IR	I=E/R	R=E/I
 	a = (ad*1e-3)/ohm;
 
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t  I(A) = %f,  I(uA) = %f\n", a, a*1e+6);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tI(A)\t%f\tI(uA)\t%f\n", a, a*1e+6);
 	a *= 1e+6;
 
 	//100Luxで46uA(5v), 1uAで2.17Lux
 	lux = a * 2.17;
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t  Lux      :  %f\n", lux);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tLux\t%f\n", lux);
 
 	lux += 0.05;
 	return (int)(lux*FLOAT_SCALE);
