@@ -20,15 +20,33 @@ extern float	g_temp;
 
 void Drain(int pin)
 {
-	//ドレインピンを使用して放電
-	InitPin(pin, PIN_OUT);
-	GPIO_CLR(pin);
-	//200ms
-	DelayMicroSecond(200000);
+	////ドレインピンを使用して放電
+	//InitPin(pin, PIN_OUT);
+	//GPIO_CLR(pin);
+	////200ms
+	//DelayMicroSecond(200000)
+	//InitPin(pin, PIN_IN);
+	
+	int i, ad1;
+	float mV1;
+	
 	InitPin(pin, PIN_IN);
-
-	//20ms
-	//DelayMicroSecond(20000);
+	PullUpDown(pin, PULL_DOWN);
+	
+	//ドレインピンを使用して放電 最大20ms*50 = 1s
+	for(i=0; i<50; i++)
+	{
+		ad1 = GetADCH(1, &mV1, 2);
+		//20ms
+		DelayMicroSecond(20000);
+		//printf("d i-%d\t%d\t%f\n", i, ad1, mV1);
+		if( ad1 == 0 )
+			break;
+	}	
+	//ハイインピーダンスへ
+	PullUpDown(pin, PULL_NONE);
+	InitPin(pin, PIN_IN);
+	return;
 }
 float GetLux()
 {
@@ -36,16 +54,25 @@ float GetLux()
 	const unsigned int drainPin = 23;
 	const unsigned int ch  = 1;
 	float mV1, mV2, mVAvg, mVDiff, lux, a;
-	int ad1, ad2, adAvg, adDiff;
-	int i, j;
+	int ad1, ad2, adAvg, adDiff, adSub;
+	int i, j, lsb;
 	int quantity = 5;
 
 	int range[] = {
+		/* LSB=2 */
 		/*us*/25, 100, 500,
-		/*ms*/1000, 3000, 15000, 30000, 160000, 300000, 800000
+		/*ms*/1000, 3000, 
+		
+		/*LSB=2*/
+		///*ms*/15000, 30000, 160000, 300000, 800000
 		/*s *///1600000
+		
+		/* LSB=1 */
+		/*ms*/8000, 16000, 80000, 160000,
+		/*s*/1000000
 	};
 	
+	//12bitを2bit削ってノイズ除去したとき
 	//25 		(25us)		-> 10,000uA
 	//100		(100us)		->  1,000uA
 	//500		(500us)		->    100uA
@@ -56,36 +83,31 @@ float GetLux()
 	//160000 	(160ms)		->		0.01uA	本来は150msだがちょっと余裕を見て160msへ
 	//300000	(300ms)		->		0.005uA
 	//800000	(800ms)		->		0.002uA 100ms余裕を入れてる
-	//1600000	(1.6s)		->		0.001uA 0.1s余裕を入れてある
-	//					長すぎるのでなしに1.6*5で8秒かかる
+	//1600000	(1.6s)		->		0.001uA 0.1s余裕を入れてある 長いのでなし
 	//豆 1Mohm		9.667969mV		0.009668uA	Lux	0.020979
 	//コンデンサ    0.000030mV/us	0.014200uA	Lux	0.030814
+	
+	//0.1uA以降は時間がかかるのでノイズ上等で12bitを11bitにする
+	//8000		(8ms)		->		0.1uA(7500		+ 500us)
+	//16000		(16ms)		->		0.05uA(15000	+ 1000us)
+	//80000		(80ms)		->		0.01uA(75000	+ 5000us)
+	//160000	(160ms)		->		0.005uA(150000	+ 10000us)
+	//800000	(800ms)		->		0.001uA(750000	+ 50000us) 長いのでなし
+	
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "  Lux use condensare\n");
 
 	InitPin(pin, PIN_OUT);
-	//放電
-	Drain(drainPin);
 
-	adDiff	= 10;
 	for(i=0; i<ARRAY_SIZE(range); i++)
 	{
 		mVAvg	= 0;
 		adAvg	= 0;
-
-		//高分解能してるのでsleepを10倍
-		ad1 = PinGetADCH(pin, ch, &mV1, range[i] * 10);
-		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\ti - %d\t%d\t%f\t%u\n", i, ad1, mV1, range[i]);
-		Drain(drainPin);
-
-		//ad1が0ならまったく望みなしなので次
-		if( ad1 == 0 )
-			continue;
-		//この時点でコンデンサの充電電圧から電流を計測すると
-		//突入電流の影響で計算上かなり上の数値が出るため
-		//倍の時間計測して1us当たりの充電電圧を計算しその上昇値を利用する
-
+		//捨てるbit数
 		//3.3/2^10 -> 3.2mV
+		lsb = range[i] < 8000 ? AD_LSB : 1;
+		//lsb = 2;
+		
 		//指定秒数のときの差分を満たした時に充電上昇値を取得し始める
 		if( range[i] < 500 )
 			adDiff = 10;
@@ -95,17 +117,36 @@ float GetLux()
 			adDiff = 2;
 		else
 			adDiff = 1;
-		
-		//レンジが100msを超えたら突入電流の影響がかなり減るので平均をとる個数を減らす
-		quantity = range[i] > 100000 ? 3 : 5;
-		
-		for(j=2; j<=quantity; j++)
-		{
-			ad2 = PinGetADCH(pin, ch, &mV2, (range[i]*j) * 10);
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%d\t%f\t%u\n", ad2, mV2, range[i]*j );
-			Drain(drainPin);
+			
+		//レンジが10msを超えたら突入電流の影響がかなり減るので平均をとる個数を減らす
+		//quantity = range[i] >= 10000 ? 3 : 5;
+		quantity = 5;
+			
+		//放電
+		Drain(drainPin);
 
-			if( (ad2 - ad1) < adDiff )
+		//高分解能してるのでsleepを10倍
+		ad1 = PinGetADCH(pin, ch, NULL, range[i] * 10, lsb);
+		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\ti - %d\t%d\t%u\n", i, ad1, range[i]);
+		
+		//ad1が0ならまったく望みなしなので次
+		if( ad1 == 0 )
+			continue;
+		//この時点でコンデンサの充電電圧から電流を計測すると
+		//突入電流の影響で計算上かなり上の数値が出るため
+		//倍の時間計測して1us当たりの充電電圧を計算しその上昇値を利用する		
+		
+		//ad2 = GetADCH(ch, &mV2, lsb);
+		//printf("pre i-%d\t%d\t%f\n", i, ad2, mV2);
+		for(j=2; j<=quantity; j++)
+		{	
+			ad2 = PinGetADCH(pin, ch, NULL, range[i] * 10, lsb);
+			//Drain(drainPin);
+			//ad2 = PinGetADCH(pin, ch, NULL, (range[i]*j) * 10, lsb);
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%d\t%u\n", ad2, range[i]*j );
+
+			adSub = ad2 - ad1;
+			if( adSub < adDiff )
 			{
 				//15ms以下の場合で2回目のほうがなぜか低いか同じ場合次でできる可能性が低いのでスキップ
 				if( ad2 <= ad1  && range[i] < 15000)
@@ -115,22 +156,21 @@ float GetLux()
 			else
 			{
 				//差分の平均値を求める
-				adAvg += ad2 - ad1;
-				mVAvg  += mV2 - mV1;
-
+				adAvg += adSub;
 				ad1 = ad2;
-				mV1  = mV2;
 			}
 		}
 		if( j > quantity )
 		{
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tsum\tadc\t%u\tad\t%f\n", adAvg, mVAvg);
+			float avg;
 			//平均値を求めるため
 			//差分のため全体の個数-1で平均値に
 			--quantity;
-			mVAvg /= quantity;
-			adAvg /= quantity;
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tavg\tadc\t%u\tad\t%f\n", adAvg, mVAvg);
+			avg		= (float)adAvg / quantity;
+			//res	= (float)VREF / ( 1<<(AD_RESOLUTION-AD_LSB) );
+			mVAvg	= avg * ((float)VREF / (1<<(AD_RESOLUTION-lsb)) );
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tsum\tadc\t%u\n", adAvg);
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tavg\tadc\t%f\tad\t%f\n", avg, mVAvg);
 
 			break;
 		}
@@ -144,8 +184,6 @@ float GetLux()
 	// Vc(V)=(I/C)*t
 	// t(s)=(Vc*C)/I
 	// I(A)=(Vc*C)/t	I(A)=(Vc(mV) * C(uF)) / t(us)
-	//a = (((mVAvg/range[i])*1e-3)*0.47e-6)/(1e-6);
-	//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "I(A) = %f,  I(uA) = %f\n", a, a*1e+6);
 
 	a = (((mVAvg/range[i])*1e-3)*0.47e-6)/(1e-6) * 1e+6;
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tI(uA)\t%f\n", a);
@@ -170,7 +208,7 @@ float GetLuxOhm(int ohm)
 	sleepTime = 100000;
 
 	DelayMicroSecond(sleepTime);
-	adc = GetADCH(ch, &ad);
+	adc = GetADCH(ch, &ad, AD_LSB);
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tohm\tadc\t%8d\tad\t%f\n", adc, ad);
 
 	GPIO_CLR(pin);
@@ -210,7 +248,7 @@ float GetHumidity()
 
 		//放電用 0.1s
 		DelayMicroSecond(100000);
-		adc = GetADCH(ch, &ad);
+		adc = GetADCH(ch, &ad, AD_LSB);
 		if( adc != 0 )
 		{
 			//放電しきってなかったらもう一度
@@ -220,7 +258,7 @@ float GetHumidity()
 		sleepTime *= 10;
 
 		//高分解能してるのでsleepを10倍
-		adc = PinGetADCH(pin, ch, &ad, sleepTime*10);
+		adc = PinGetADCH(pin, ch, &ad, sleepTime*10, AD_LSB);
 		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    ch sleepTime %d    %2d    adc %8d    volt %fmV\n", sleepTime, ch, adc, ad);
 
 		if( adc > 10 )
