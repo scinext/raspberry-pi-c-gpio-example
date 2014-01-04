@@ -88,7 +88,6 @@ void InitPin(unsigned int pin, int ioFlag)
 }
 void PullUpDown(unsigned int pin, int upDown)
 {
-	InitPin(pin, PIN_IN);
 	SetRegisterBit(gpio+GPIO_PUD, GPIO_PUD_REGISTER_PUD, GPIO_PUD_USE_BIT, upDown);
 	
 	usleep(25000);
