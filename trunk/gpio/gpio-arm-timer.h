@@ -69,6 +69,7 @@
 void DelayArmTimerCounter(unsigned int delayCount);
 unsigned int ArmTimerSetFreeScale(unsigned int divider);
 void PrintArmTimerRegister();
+void PrintArmTimerCounter();
 int InitArmTimer(ArmTimerRes res);
 int UnInitArmTimer();
 

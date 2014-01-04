@@ -16,7 +16,7 @@
 
 
 //湿度の温度補正用のtemp用
-int		g_temp;
+float	g_temp;
 
 int		g_outLevel;
 
@@ -28,7 +28,8 @@ int main(int argc, char *argv[])
 	int opt;
 	extern char *optarg;
 
-	int ohm, mode, ret;
+	int ohm, mode;
+	float ret;
 
 	if(argc <= 1)
 		return -1;
@@ -107,7 +108,7 @@ int main(int argc, char *argv[])
 
 	SetPriority(NOMAL_PRIO);
 	
-	printf("ret = %d\n", ret);
+	printf("ret = %f\n", ret);
 	
 	UnInitArmTimer();
 	UnInitLps331();

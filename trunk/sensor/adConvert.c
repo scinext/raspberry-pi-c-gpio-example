@@ -11,7 +11,6 @@
 #include "./gpio/gpio-arm-timer.h"
 #include "adConvert.h"
 
-#include "main.h"
 
 //送信時のデータ
 #define START_BIT		1<<2	//S
@@ -109,9 +108,9 @@ int PinGetADCH(int pin, int ch, float *outADVolt, unsigned long sleepTime)
 	 
 	//内部でpinの初期化とHigh,Lowを行っている
 	//ここでspi転送にかかる5-6usをあらかじめ待機時間から引いとく
-	//高分解能のため*10
-	if( sleepTime > 50 )
-		sleepTime -= 50;
+	//高分解能のため*10とずれる2count分を差し引く
+	if( sleepTime > 52 )
+		sleepTime -= 52;
 	else
 		sleepTime = 0;
 	//printf("sleep %u\n", sleepTime);

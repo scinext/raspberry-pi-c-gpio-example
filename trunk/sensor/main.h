@@ -2,9 +2,6 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-
-#define ARRAY_SIZE(a) ( sizeof(a) / sizeof((a)[0]) )
-
 #define MODE_TEMP		0x01
 #define MODE_PRESS		0x02
 #define MODE_HUMIDITY	0x03

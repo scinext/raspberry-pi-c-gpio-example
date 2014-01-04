@@ -29,31 +29,6 @@ char *gpio_map;
 
 #include "gpio-timer.h"
 
-void InitPin(unsigned int pin, int ioFlag)
-{
-	//printf("init %2d pin-> %d\n", pin, ioFlag);
-	//初期化(実際はIN_GPIOと同じ)
-	INIT_GPIO(pin);
-	switch( ioFlag )
-	{
-		//case PIN_INIT: 実際はPIN_INと同じ 0が来る
-		case PIN_IN:
-			//実際は何もしない
-			IN_GPIO(pin);
-			break;
-		case PIN_OUT:
-			OUT_GPIO(pin);
-			break;
-		case PIN_ALT0:
-		case PIN_ALT1:
-		case PIN_ALT2:
-		case PIN_ALT3:
-		case PIN_ALT4:
-		case PIN_ALT5:
-			ALT_GPIO(pin, ioFlag);
-			break;
-	}
-}
 void InitGpio()
 {
 	int mem_fd;
@@ -84,6 +59,60 @@ void InitGpio()
 	
 	
 	InitSysTimer();
+}
+
+void InitPin(unsigned int pin, int ioFlag)
+{
+	//printf("init %2d pin-> %d\n", pin, ioFlag);
+	//初期化(実際はIN_GPIOと同じ)
+	INIT_GPIO(pin);
+	switch( ioFlag )
+	{
+		//case PIN_INIT: 実際はPIN_INと同じ 0が来る
+		case PIN_IN:
+			//実際は何もしない
+			IN_GPIO(pin);
+			break;
+		case PIN_OUT:
+			OUT_GPIO(pin);
+			break;
+		case PIN_ALT0:
+		case PIN_ALT1:
+		case PIN_ALT2:
+		case PIN_ALT3:
+		case PIN_ALT4:
+		case PIN_ALT5:
+			ALT_GPIO(pin, ioFlag);
+			break;
+	}
+}
+void PullUpDown(unsigned int pin, int upDown)
+{
+	InitPin(pin, PIN_IN);
+	SetRegisterBit(gpio+GPIO_PUD, GPIO_PUD_REGISTER_PUD, GPIO_PUD_USE_BIT, upDown);
+	
+	usleep(25000);
+	
+	if( pin <= 31 )
+		//SetRegisterBit(gpio+GPIO_PUD_CLK_0, pin, 1, 1);
+		*(gpio+GPIO_PUD_CLK_0) = 1<<pin;
+	else
+		//SetRegisterBit(gpio+GPIO_PUD_CLK_1, pin-32, 1, 1);
+		*(gpio+GPIO_PUD_CLK_1) = 1<<(pin - 32);
+		
+	
+	//データシートだと150cycle待機だったが実際には25ms待機で
+	//gpioのレベルが変わるのでそれまで待機させる
+	usleep(25000);
+	
+	SetRegisterBit(gpio+GPIO_PUD, GPIO_PUD_REGISTER_PUD, GPIO_PUD_USE_BIT, PULL_NONE);
+	if( pin <= 31 )
+		//SetRegisterBit(gpio+GPIO_PUD_CLK_0, pin, 1, 0);
+		*(gpio+GPIO_PUD_CLK_0) = 0;
+	else
+		//SetRegisterBit(gpio+GPIO_PUD_CLK_1, pin-32, 1, 0);
+		*(gpio+GPIO_PUD_CLK_1) = 0;
+
 }
 
 //reg レジスタのアドレス, bit 何ビット目を変更するか, useBit 変更するビット数, value 値

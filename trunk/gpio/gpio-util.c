@@ -127,8 +127,8 @@ void PrintGpioPinMode(volatile unsigned int *gpio)
 }
 void PrintGpioLevStatus(volatile unsigned int *gpio)
 {
-	PrintRegStatus(stdout, gpio, 13, "GPLEV0         ", 1);
-	PrintRegStatus(stdout, gpio, 14, "GPLEV1         ", 0);
+	PrintRegStatus(stdout, gpio, GPIO_LEV_0, "GPLEV0          ", 1);
+	PrintRegStatus(stdout, gpio, GPIO_LEV_1, "GPLEV1          ", 0);
 }
 
 //void PrintRegStatus(volatile unsigned int *reg, int addr, char *text, int dispDigit)

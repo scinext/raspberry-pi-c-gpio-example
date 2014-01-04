@@ -15,6 +15,8 @@
 
 #define LOG_FILE	"/var/log/gpio.log"
 
+#define ARRAY_SIZE(a) ( sizeof(a) / sizeof((a)[0]) )
+
 //32bitをしてされたbit数で区切ってfpへ表示
 void PrintUintDelimiter(FILE *fp, unsigned int bin, int col);
 //gpioレジスタの内容をすべて表示

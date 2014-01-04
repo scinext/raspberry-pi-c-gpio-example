@@ -4,6 +4,8 @@
 #include "gpio.h"
 #include "gpio-util.h"
 #include "gpio-spi.h"
+
+#define SYS_TIMER_DEBUG
 #include "gpio-timer.h"
 #include "gpio-i2c.h"
 #include "gpio-arm-timer.h"
@@ -12,16 +14,38 @@
 
 struct timespec startTs, endTs;
 
+#define SLEEP_TEST	1
+#define SLEEP_LOOP	10
+#define SLEEP_LIMIT	50000
+
 int main(int argc, char** argv)
 {
 	InitGpio();	
 	SetPriority(HIGH_PRIO);
 	
 	//SpiTest();
-	//SysTimerTest();
 	//I2cTest();
 	
+	int i;
+	printf("arm\n");
+	//for(i=0; i<20; i++)
+	{
 	ArmTimerTest();
+	}
+	
+	printf("sys\n");
+	//for(i=0; i<20; i++)
+	{
+	SysTimerTest();
+	}
+	
+	//InitSysTimer();
+	//SysTimerPrecisionTest();
+	//UnInitSysTimer();
+	//
+	//InitArmTimer(0);
+	//ArmTimerPrecisionTest();
+	//UnInitArmTimer();
 	
 	return 0;
 }
@@ -29,28 +53,38 @@ void ArmTimerTest()
 {
 	struct timespec startTs, endTs;
 	int i, sleep;
+	long sum;
 	    
-	InitArmTimer(1);
-	sleep = 1000;
-	for(i=0; i<5; i++){
-		Dprintf("Arm Timer Test\n");
+	InitArmTimer(0);
+	
+	sum = 0;
+	//sleep = SLEEP_TEST*10-2;
+	sleep = SLEEP_TEST;
+	//Dprintf("Arm Timer Test\n");
+	for(i=0; i<SLEEP_LOOP; i++){
 		clock_gettime(CLOCK_MONOTONIC, &startTs);
 		
-		DelayArmTimerCounter(sleep*10);
+		DelayArmTimerCounter(sleep);
 		
 		clock_gettime(CLOCK_MONOTONIC, &endTs);
-		TimeDiff(&startTs, &endTs, sleep*1000);
+		//TimeDiff(&startTs, &endTs, 0);
+		if( endTs.tv_sec == startTs.tv_sec)
+			sum += endTs.tv_nsec - startTs.tv_nsec;
+		else
+			sum += (unsigned long)1e+9 - startTs.tv_nsec + endTs.tv_nsec;
+		printf("\t%lu\n", sum);
+		sum = 0;
+		//printf("\t%ld\n", endTs.tv_nsec - startTs.tv_nsec);
 		//PrintArmTimerRegister();
 	}
+	//if( sum > SLEEP_TEST*SLEEP_LOOP*1000+SLEEP_LIMIT )
+	//	printf("Arm Timer Test\t\tsum %ld\n", sum);
 	
 	//PrintArmTimerRegister();
 	
 	//ArmTimerPrecisionTest();
 	UnInitArmTimer();
 	
-	//InitSysTimer();
-	//SysTimerPrecisionTest();
-	//UnInitSysTimer();
 }
 void I2cTest()
 {
@@ -123,14 +157,33 @@ void I2cTest()
 
 void SysTimerTest()
 {	
-	//InitSysTimer();
+	struct timespec startTs, endTs;
+	int i, sleep;
+	long sum;
 	
+	InitSysTimer();
+	
+	sum = 0;
 	//PrintSysTimerRegister();
-	
-	clock_gettime(CLOCK_MONOTONIC, &startTs);
-	DelayMicroSecond(30);
-	clock_gettime(CLOCK_MONOTONIC, &endTs);
-	TimeDiff(&startTs, &endTs, 0);
+	sleep = SLEEP_TEST;
+	//Dprintf("System Timer Test\n");
+	for(i=0; i<SLEEP_LOOP; i++){
+		clock_gettime(CLOCK_MONOTONIC, &startTs);
+		
+		DelayMicroSecond(sleep);
+		
+		clock_gettime(CLOCK_MONOTONIC, &endTs);
+		//TimeDiff(&startTs, &endTs, 0);
+		if( endTs.tv_sec == startTs.tv_sec)
+			sum += endTs.tv_nsec - startTs.tv_nsec;
+		else
+			sum += (unsigned long)1e+9 - startTs.tv_nsec + endTs.tv_nsec;
+		printf("\t%lu\n", sum);
+		sum = 0;
+		//printf("\t%ld\n", endTs.tv_nsec - startTs.tv_nsec);
+	}
+	//if( sum > SLEEP_TEST*SLEEP_LOOP*1000+SLEEP_LIMIT )
+	//	printf("System Timer Test\tsum %ld\n", sum);
 	
 	UnInitSysTimer();
 }

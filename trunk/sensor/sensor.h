@@ -33,16 +33,13 @@
 	#define LPS331_ACTIVE_ON			0x90
 	#define LPS331_ACTIVE_OFF			0x00
 
-#define FLOAT_SCALE 10
-
 void Drain(int pin);
-int GetLux();
-int GetLuxOhm(int ohm);
+float GetLux();
+float GetLuxOhm(int ohm);
 
-int GetOhm(float ad, unsigned long sleepTime);
-int GetHumidity();
+float GetHumidity();
 
-int GetPress();
-int GetTemp();
+float GetPress();
+float GetTemp();
 
 #endif

@@ -25,29 +25,38 @@ volatile unsigned int *armTimer = NULL;
 //分解能が入る 1なら詳細 0なら通常
 int armTimerResolution;
 
-//単位が1usか0.1usなので極短い時間しか扱わないようにする
+//単位が1usか0.1us、0.1usのときはどうしても2counter分実際とずれる
+//while( *(armTimer+ARM_TIMER_COUNTER) < over )が2counter分使う?ので使用するときは-2を忘れないようにする
 void DelayArmTimerCounter(unsigned int delayCount)
 {
-	unsigned int start, over, useLimit;
+	unsigned int over, useLimit;
 
 	if( armTimer == NULL || delayCount == 0)
 		return;
 		
-	start = *(armTimer+ARM_TIMER_COUNTER);
-	over = start+delayCount;
-	//10ms以上をカウンタで監視すると7segがちらつく
-	//1ms以下かどうかで使用するか決める以上の場合ならclock_nanosleepを
+	//unsigned int test;
+	//test = *(armTimer+ARM_TIMER_COUNTER);
+	
+	//ある程度大きい数をカウンタのループで監視するとcpuの処理を使いすぎるので
+	//sleepを混ぜ、その間に進んだカウンタ分を計測し、
+	//元のカウンタからスリープ中に進んだ分を差し引きして1ms以下になったら監視を開始する
+	over = *(armTimer+ARM_TIMER_COUNTER)+delayCount;
+	
 	useLimit = armTimerResolution==1 ? 10000 : 1000;
-	if( delayCount <= useLimit )
+	if( delayCount > useLimit )
 	{
-		while( *(armTimer+ARM_TIMER_COUNTER) < over )
-			;
+		int waitCountStart;
+		while( delayCount >= useLimit )
+		{
+			waitCountStart	= *(armTimer+ARM_TIMER_COUNTER);
+			usleep(250);
+			delayCount		-= *(armTimer+ARM_TIMER_COUNTER) - waitCountStart;
+		}
 	}
-	else
-	{
-		while( *(armTimer+ARM_TIMER_COUNTER) < over )
-			usleep(500);
-	}
+	while( *(armTimer+ARM_TIMER_COUNTER) < over )
+		;
+	
+	//printf("diff %u\n", *(armTimer+ARM_TIMER_COUNTER) - test);
 	return;
 }
 
@@ -107,6 +116,13 @@ void PrintArmTimerRegister()
 	PrintRegStatus(stdout, armTimer, ARM_TIMER_DIVIDER , "ARM_TIMER_DIVIDER     ",	0);
 	PrintRegStatus(stdout, armTimer, ARM_TIMER_COUNTER , "ARM_TIMER_COUNTER     ",	0);
 
+	return;
+}
+void PrintArmTimerCounter()
+{
+	//桁を合わせるための調整
+	printf("      ");
+	PrintRegStatus(stdout, armTimer, ARM_TIMER_COUNTER , "ARM_TIMER_COUNTER     ",	1);
 	return;
 }
 int InitArmTimer(ArmTimerRes res)
@@ -191,8 +207,9 @@ void ArmTimerPrecisionTest()
 	
 	int lim = 1;
 	int over;
-	for(i=0; i<5; i++){
-		ArmTimerDprintf("Arm Timer Precision Test\n");
+	long sum;
+	//ArmTimerDprintf("Arm Timer Precision Test\n");
+	for(i=0; i<1000; i++){
 		lim = 10;
 		clock_gettime(CLOCK_MONOTONIC, &startTs);
 		
@@ -203,9 +220,11 @@ void ArmTimerPrecisionTest()
 		diff = *(armTimer+ARM_TIMER_COUNTER);
 		
 		clock_gettime(CLOCK_MONOTONIC, &endTs);
-		TimeDiff(&startTs, &endTs, 0);
-		ArmTimerDprintf("%u\t\t%u\n", tmp, diff);
+		//TimeDiff(&startTs, &endTs, 0);
+		sum += endTs.tv_nsec - startTs.tv_nsec;
+		//ArmTimerDprintf("%u\t\t%u\n", tmp, diff);
 	}
+	ArmTimerDprintf("Arm Timer Test\t\tsum %ld\n", sum);
 	//ArmTimerDprintf("armtem timer diff add %u avg %u\n", avg, avg/(i-1) );
 	
 	return;

@@ -40,52 +40,28 @@ void DelayMicroSecond(unsigned int delayMicroSecond)
 	SysTimerDprintf("start time %u,  delay %u,  delayed time %u\n", start, delayMicroSecond, delayedTime );
 	
 	//単位はマイクロ?
-	if( delayMicroSecond < SYS_SLEEP )
+	if( delayMicroSecond > SYS_SLEEP )
 	{
-		//32bitでの桁あふれの考慮、型の最大値から現在の値を引きあふれまでの残りを求めdelayから引く
-		if( delayedTime < start )
+		int waitCountStart;
+		while( delayMicroSecond >= SYS_SLEEP )
 		{
-			//ハイカウンタがカウントされるまで待機
-			while( *(sysTimer+SYS_TIMER_CHI) > hiCounter )
-				;
+			waitCountStart		= *(sysTimer+SYS_TIMER_CLO);
+			usleep(250);				
+			delayMicroSecond	-= *(sysTimer+SYS_TIMER_CLO) - waitCountStart;
 		}
-		while( *(sysTimer+SYS_TIMER_CLO) < delayedTime )
+	}
+	//ディレイした数字が開始時より少ない場合は桁あふれをしてるのでハイカウンタがカウントされるのを待つ
+	if( delayedTime < start )
+	{
+		//ハイカウンタがカウントされるまで待機
+		while( *(sysTimer+SYS_TIMER_CHI) > hiCounter )
 			;
-		//printf("%u\t%u\n", start, *(sysTimer+SYS_TIMER_CLO) );
 	}
-	else
-	{
-		//32bitでの桁あふれの考慮、型の最大値から現在の値を引きあふれまでの残りを求めdelayから引く
-		if( delayedTime < start )
-		{
-			//ハイカウンタがカウントされるまで待機
-			while( *(sysTimer+SYS_TIMER_CHI) > hiCounter )
-				usleep(500);
-		}
-		while( *(sysTimer+SYS_TIMER_CLO) < delayedTime )
-			usleep(500);
-		
-		//struct timespec sleepTs;
-		//
-		////単位がnanoなので現在のマイクロを変換
-		////microをnano秒にする(x1000)を考慮して1000000マイクロ秒を超えるようならtv_secに
-		//const unsigned int microOverSec = 1000000;
-		//if( delayMicroSecond < microOverSec )
-		//{
-		//	sleepTs.tv_nsec = delayMicroSecond * 1000;
-		//	sleepTs.tv_sec = 0;
-		//}
-		//else
-		//{
-		//	sleepTs.tv_nsec = delayMicroSecond % microOverSec;
-		//	sleepTs.tv_sec = delayMicroSecond / microOverSec;
-		//}
-		//SysTimerDprintf("delay %lu second %lu nano second\n", sleepTs.tv_sec, sleepTs.tv_nsec );
-		//clock_nanosleep(CLOCK_MONOTONIC, 0, &sleepTs, NULL);
-		////nanosleep(&sleepTs, NULL);
-	}
-	//start = *(sysTimer+SYS_TIMER_CLO);
-	//SysTimerDprintf("end time %u\n", start );
+	while( *(sysTimer+SYS_TIMER_CLO) < delayedTime )
+		;
+	
+	//printf("diff %u\n", *(sysTimer+SYS_TIMER_CLO)-start);
+	
 	return;
 }
 void PrintSysTimerRegister()
@@ -170,8 +146,9 @@ void SysTimerPrecisionTest()
 	
 	int lim = 1;
 	int over;
-	for(i=0; i<5; i++){
-		SysTimerDprintf("System Timer Precision Test\n");
+	long sum;
+	//SysTimerDprintf("System Timer Precision Test\n");
+	for(i=0; i<1000; i++){
 		lim = 10;
 		clock_gettime(CLOCK_MONOTONIC, &startTs);
 		
@@ -182,9 +159,11 @@ void SysTimerPrecisionTest()
 		diff = *(sysTimer+SYS_TIMER_CLO);
 		
 		clock_gettime(CLOCK_MONOTONIC, &endTs);
-		TimeDiff(&startTs, &endTs, 0);
-		SysTimerDprintf("%u\t\t%u\n", tmp, diff);
+		//TimeDiff(&startTs, &endTs, 0);
+		sum += endTs.tv_nsec - startTs.tv_nsec;
+		//SysTimerDprintf("%u\t\t%u\n", tmp, diff);
 	}
+	SysTimerDprintf("system Timer Test\t\tsum %ld\n", sum);
 	//SysTimerDprintf("system timer diff add %u avg %u\n", avg, avg/(i-1) );
 	
 	return;	
