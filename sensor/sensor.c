@@ -16,7 +16,7 @@
 extern int		g_outLevel;
 
 //湿度の温度補正用のtemp用
-extern int		g_temp;
+extern float	g_temp;
 
 void Drain(int pin)
 {
@@ -26,105 +26,137 @@ void Drain(int pin)
 	//200ms
 	DelayMicroSecond(200000);
 	InitPin(pin, PIN_IN);
-	
+
 	//20ms
 	//DelayMicroSecond(20000);
 }
-int GetLux()
+float GetLux()
 {
 	const unsigned int pin = 25;
 	const unsigned int drainPin = 23;
 	const unsigned int ch  = 1;
-	float firstAD, secondAD, avgAD, diffAD, lux, a;
-	int firstADC, secondADC, avgADC;
+	float mV1, mV2, mVAvg, mVDiff, lux, a;
+	int ad1, ad2, adAvg, adDiff;
 	int i, j;
 	int quantity = 5;
-	
+
 	int range[] = {
-		20, 50, 100, 500,				//us
-		1000, 10000, 100000, 250000,	//ms
-		1000000							//s
+		/*us*/25, 100, 500,
+		/*ms*/1000, 3000, 15000, 30000, 160000, 300000, 800000
+		/*s *///1600000
 	};
+	
+	//25 		(25us)		-> 10,000uA
+	//100		(100us)		->  1,000uA
+	//500		(500us)		->    100uA
+	//1000		(1ms)		->	   10uA
+	//3000		(3ms)		->		1uA
+	//15000		(15ms)		->		0.1uA
+	//30000		(30ms)		->		0.05uA
+	//160000 	(160ms)		->		0.01uA	本来は150msだがちょっと余裕を見て160msへ
+	//300000	(300ms)		->		0.005uA
+	//800000	(800ms)		->		0.002uA 100ms余裕を入れてる
+	//1600000	(1.6s)		->		0.001uA 0.1s余裕を入れてある
+	//					長すぎるのでなしに1.6*5で8秒かかる
+	//豆 1Mohm		9.667969mV		0.009668uA	Lux	0.020979
+	//コンデンサ    0.000030mV/us	0.014200uA	Lux	0.030814
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "  Lux use condensare\n");
 
 	InitPin(pin, PIN_OUT);
 	//放電
 	Drain(drainPin);
-	
-	diffAD	= 10.0;
+
+	adDiff	= 10;
 	for(i=0; i<ARRAY_SIZE(range); i++)
 	{
-		avgAD	= 0;
-		avgADC	= 0;
-		
+		mVAvg	= 0;
+		adAvg	= 0;
+
 		//高分解能してるのでsleepを10倍
-		firstADC = PinGetADCH(pin, ch, &firstAD, range[i] * 10);
-		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t%d\t%f\t%u\n", firstADC, firstAD, range[i]);
+		ad1 = PinGetADCH(pin, ch, &mV1, range[i] * 10);
+		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\ti - %d\t%d\t%f\t%u\n", i, ad1, mV1, range[i]);
 		Drain(drainPin);
 
+		//ad1が0ならまったく望みなしなので次
+		if( ad1 == 0 )
+			continue;
 		//この時点でコンデンサの充電電圧から電流を計測すると
 		//突入電流の影響で計算上かなり上の数値が出るため
 		//倍の時間計測して1us当たりの充電電圧を計算しその上昇値を利用する
+
+		//3.3/2^10 -> 3.2mV
+		//指定秒数のときの差分を満たした時に充電上昇値を取得し始める
+		if( range[i] < 500 )
+			adDiff = 10;
+		else if( range[i] < 1000 )
+			adDiff = 4;
+		else if( range[i] < 3000 )
+			adDiff = 2;
+		else
+			adDiff = 1;
 		
-		//差分でrangeが10ms以上の場合は1,以下の場合は10以上で充電上昇値を取得し始める
-		diffAD = range[i] > 10000 ? 1.0 : 10.0;
+		//レンジが100msを超えたら突入電流の影響がかなり減るので平均をとる個数を減らす
+		quantity = range[i] > 100000 ? 3 : 5;
+		
 		for(j=2; j<=quantity; j++)
 		{
-			secondADC = PinGetADCH(pin, ch, &secondAD, (range[i]*j) * 10);
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%d\t%f\t%u\n", secondADC, secondAD, range[i]*j );
+			ad2 = PinGetADCH(pin, ch, &mV2, (range[i]*j) * 10);
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%d\t%f\t%u\n", ad2, mV2, range[i]*j );
 			Drain(drainPin);
-			
-			if( (secondAD - firstAD) < diffAD )
+
+			if( (ad2 - ad1) < adDiff )
 			{
+				//15ms以下の場合で2回目のほうがなぜか低いか同じ場合次でできる可能性が低いのでスキップ
+				if( ad2 <= ad1  && range[i] < 15000)
+					++i;
 				break;
 			}
 			else
 			{
 				//差分の平均値を求める
-				avgAD  += secondAD - firstAD;
-				avgADC += secondADC - firstADC;
-				
-				firstADC = secondADC;
-				firstAD  = secondAD;
+				adAvg += ad2 - ad1;
+				mVAvg  += mV2 - mV1;
+
+				ad1 = ad2;
+				mV1  = mV2;
 			}
 		}
 		if( j > quantity )
 		{
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tsum\tadc\t%u\tad\t%f\n", avgADC, avgAD);
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tsum\tadc\t%u\tad\t%f\n", adAvg, mVAvg);
 			//平均値を求めるため
 			//差分のため全体の個数-1で平均値に
 			--quantity;
-			avgAD /= quantity;
-			avgADC /= quantity;
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tavg\tadc\t%u\tad\t%f\n", avgADC, avgAD);
-			
+			mVAvg /= quantity;
+			adAvg /= quantity;
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tavg\tadc\t%u\tad\t%f\n", adAvg, mVAvg);
+
 			break;
 		}
 	}
 	//測定できなかった
-	if( avgADC == 0 )
+	if( adAvg == 0 )
 		return 0;
-	
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t%uus\t%f\n", range[i], avgAD);
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t1us\t%f\n", avgAD/range[i]);
+
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t%uus\t%f\n", range[i], mVAvg);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t1us\t%f\n", mVAvg/range[i]);
 	// Vc(V)=(I/C)*t
 	// t(s)=(Vc*C)/I
 	// I(A)=(Vc*C)/t	I(A)=(Vc(mV) * C(uF)) / t(us)
-	//a = (((avgAD/range[i])*1e-3)*0.47e-6)/(1e-6);
+	//a = (((mVAvg/range[i])*1e-3)*0.47e-6)/(1e-6);
 	//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "I(A) = %f,  I(uA) = %f\n", a, a*1e+6);
 
-	a = (((avgAD/range[i])*1e-3)*0.47e-6)/(1e-6) * 1e+6;
+	a = (((mVAvg/range[i])*1e-3)*0.47e-6)/(1e-6) * 1e+6;
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tI(uA)\t%f\n", a);
 
 	//100Luxで46uA(5v), 1uAで2.17Lux
 	lux = a * 2.17;
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tLux\t%f\n", lux);
-
-	lux += 0.05;
-	return (int)(lux*FLOAT_SCALE);
+	
+	return lux;
 }
-int GetLuxOhm(int ohm)
+float GetLuxOhm(int ohm)
 {
 	const unsigned int pin = 25;
 	const unsigned int ch  = 1;
@@ -154,10 +186,9 @@ int GetLuxOhm(int ohm)
 	lux = a * 2.17;
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tLux\t%f\n", lux);
 
-	lux += 0.05;
-	return (int)(lux*FLOAT_SCALE);
+	return lux;
 }
-int GetHumidity()
+float GetHumidity()
 {
 	const unsigned int pin = 24;
 	long sleepTime;
@@ -195,7 +226,7 @@ int GetHumidity()
 		if( adc > 10 )
 			break;
 	}
-	
+
 	//adをミリボルトからボルトへ
 	ad /= 1000;
 	//取得した値から抵抗値を試算 テスト時は150オーム
@@ -220,15 +251,15 @@ int GetHumidity()
 	//Rs += (Rs*35-13056) /64 *Tmp /128;
 	//Rh=(5*Rs /16 *Rs + 44* Rs )/256 +20
 
-	//温度補正用
+	//温度補正用 //元データが0.5℃で1のため
 	if( g_temp == 0 )
 	{
-		temp = GetTemp() / 5.0;//(/10*2)
+		temp = GetTemp() * 2;
 		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    GetTemp*2 %f\n", temp);
 	}
 	else
 	{
-		temp = g_temp / 5.0; 
+		temp = g_temp * 2;
 		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    g_temp*2 %f\n", temp);
 	}
 	//温度補正値
@@ -241,9 +272,7 @@ int GetHumidity()
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    Humidity :  %.1f%\n", Rh);
 
 	//InitPin(pin, PIN_INIT);
-
-	Rh = Rh + 0.05;
-	return (int)(Rh * FLOAT_SCALE);
+	return Rh;
 }
 int InitLps331()
 {
@@ -260,7 +289,7 @@ int UnInitLps331()
 {
 	//UnInitI2c();
 }
-int GetPress()
+float GetPress()
 {
 	int i, adPress;
 	float press;
@@ -286,10 +315,9 @@ int GetPress()
 	press = ((float)adPress / LPS331_PRESS_RES); //1mbar = 1hPa(1000Pa)
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    press    :  %.1f\n", press);
 
-	press += 0.05;
-	return (int)(press * FLOAT_SCALE);
+	return press;
 }
-int GetTemp()
+float GetTemp()
 {
 	int i, adTemp;
 	float temp;
@@ -326,7 +354,5 @@ int GetTemp()
 	temp = ((float)adTemp/LPS331_TEMP_RES) + LPS331_TEMP_OFFSET;
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    temp     :  %.1f\n", temp);
 
-	//小数点以下2位を四捨五入してintにするために10倍
-	temp += 0.05;
-	return (int)(temp * FLOAT_SCALE);
+	return temp;
 }
