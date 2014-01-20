@@ -1,98 +1,36 @@
-﻿CC = gcc
-
+﻿CC=gcc
 #コンパイル時のフラグ -g gdbでのデバッグ用 -lrt(getclock_) -lm(math.h)
 CFLAGS =-g -O3
 #リンク時のフラグ
 LDFLAGS =-O3 -lrt -lm 
 
-#一時ファイルの出力場所
-OBJ_DIR = ./obj/
-
 #コンパイルファイル
-GIPO_DIR = gpio/
-SRC += $(addprefix $(GIPO_DIR), gpio.c gpio-spi.c gpio-util.c gpio-timer.c gpio-i2c.c gpio-arm-timer.c)
-SRC += main.c adConvert.c sensor.c
+MAIN += main.o adConvert.o sensor.o
+GPIO += gpio.o gpio-spi.o gpio-util.o gpio-timer.o gpio-i2c.o gpio-arm-timer.o
+OBJ += $(MAIN) $(GPIO)
 
-OBJ=$(addprefix $(OBJ_DIR), $(SRC:.c=.o) )
+#ソースコードの検索先
+VPATH = ../gpio/
+
+#オブジェクトファイルの出力先
+OBJ_DIR = ../obj/
 
 #実行ファイル名
 TARGET=sensor
 
-all: $(TARGET)
 
-$(TARGET): $(OBJ)
-	#$<, $@
-	$(CC) $(LDFLAGS) $(OBJ) -o $@
-	
-	#sudo ./sensor
-
-#$(OBJ)が$(OBJ_DIR)%.oのパターンに引っかかるのでここが適用される
-#パターンの%が使えるので%.cの依存関係が確立してmakeされる
-#作成するオブジェクトのディレクトリを取得してmkdir
-$(OBJ_DIR)%.o : %.c
-	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+#先に出力先のディレクトリの作成を行う
+all: $(OBJ_DIR) $(TARGET)
 
 $(OBJ_DIR):
-	mkdir -p $(OJB_DIR)
+	mkdir -p $@
+	
+$(TARGET): $(addprefix $(OBJ_DIR), $(OBJ))
+	$(CC) $(LDFLAGS) $(addprefix $(OBJ_DIR), $(OBJ)) -o $@
+	
+$(OBJ_DIR)%.o : %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm ../obj/*.o
+	rm $(addprefix $(OBJ_DIR), $(MAIN))
 	
-	
-#Make書式 http://www.unixuser.org/~euske/doc/makefile/
-#依存関係とコマンドとの見分けは行頭にタブがあるかないかのみ
-#ソースを省略するとタイムスタンプ比較ができないため必ず実行する
-#ソースが更新されていたらコマンドを実行する
-#ソースが他から生成されたものなら先にそちらを行う
-#
-#ターゲット: ソース
-#	コマンド
-#
-#サフィックスルール
-#	.suffix1.suffix2
-#		command1
-#	suffix2のファイルがsuffix1から作成できる(suffix1 -> suffix2)
-#
-#
-#関数(textは基本的に空白区切り)
-#http://www.ecoop.net/coop/translated/GNUMake3.77/make_toc.jp.html
-#
-#$(patsubst pattern, replace, text)
-#	textをパターンにヒットした部分を置き換える
-#	pattern内%->ワイルドカード
-#	replace内%->上記でヒットした部分
-#
-#	$(patsubst %.c, %.o, bar.c foo.c)
-#		bar.o foo.o	
-#
-#代用参照
-#	変数を利用するときに末尾が指定したものだった場合置き換える
-#	patsubstよりも場合によっては楽
-#	foo = a.o b.o c.o
-#	bar = $(foo:.o=.c)
-#		a.c b.c c.c
-#
-#
-#$(addprefix prefix, text)
-#	textの先頭にprefixをつける
-#	$(addprefix src/, foo bar)
-#		src/foo src/bar
-#
-#$(notdir text)
-#	textからディレクトリを削除する
-#	$(notdir dir/foo.c bar.c)
-#		foo.c bar.c
-#
-#$(dir text)
-#	textからディレクトリのみにするディレクトリがない場合は'./'になる
-#	$(dir src/foo.c bar.c)
-#		src/ ./
-#
-#
-#
-#
-#
-#
-#
-#

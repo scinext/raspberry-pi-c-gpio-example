@@ -9,7 +9,7 @@
  *	仮想アドレスにアクセスするには /dev/kmem を解することで行えるがセキュリティ上よくないらしい
  *	http://www.raspberrypi.org/phpBB3/viewtopic.php?t=8476&p=101994
  */
- 
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,8 +56,8 @@ void InitGpio()
 	close(mem_fd);
 
 	gpio = (volatile unsigned int *)gpio_map;
-	
-	
+
+
 	InitSysTimer();
 }
 
@@ -86,24 +86,30 @@ void InitPin(unsigned int pin, int ioFlag)
 			break;
 	}
 }
+
 void PullUpDown(unsigned int pin, int upDown)
 {
+	//データシート p101だと150cycle待機
+	//データシート p105だと一番遅いものだと14.29MHzで約0.07us
+	//150cycleで約10.5なのでおそらく11us待機すれば大丈夫だと思われる余裕をもって30us
+	//0というより待機なしでも動くっぽい…
+	const unsigned int setupCycle = 30;
+
 	SetRegisterBit(gpio+GPIO_PUD, GPIO_PUD_REGISTER_PUD, GPIO_PUD_USE_BIT, upDown);
-	
-	usleep(25000);
-	
+
+
+	DelayMicroSecond(setupCycle);
+
 	if( pin <= 31 )
 		//SetRegisterBit(gpio+GPIO_PUD_CLK_0, pin, 1, 1);
 		*(gpio+GPIO_PUD_CLK_0) = 1<<pin;
 	else
 		//SetRegisterBit(gpio+GPIO_PUD_CLK_1, pin-32, 1, 1);
 		*(gpio+GPIO_PUD_CLK_1) = 1<<(pin - 32);
-		
-	
-	//データシートだと150cycle待機だったが実際には25ms待機で
-	//gpioのレベルが変わるのでそれまで待機させる
-	usleep(25000);
-	
+
+	DelayMicroSecond(setupCycle);
+
+
 	SetRegisterBit(gpio+GPIO_PUD, GPIO_PUD_REGISTER_PUD, GPIO_PUD_USE_BIT, PULL_NONE);
 	if( pin <= 31 )
 		//SetRegisterBit(gpio+GPIO_PUD_CLK_0, pin, 1, 0);
@@ -118,30 +124,30 @@ void PullUpDown(unsigned int pin, int upDown)
 unsigned int SetRegisterBit(volatile unsigned int *reg, unsigned int bit, unsigned int useBit, unsigned int value)
 {
 	unsigned int mask, tmp;
-	
+
 	if( useBit <= 0 )
 		useBit = 1;
 	//指定した数分の1bitを指定したbitまでシフト
 	mask = ( (1<<useBit)-1 ) << bit;
-	
+
 	//初期化(否定をすることで指定した数分の1bit以外1に該当部は0)
 	tmp = *reg & ~mask;
-	
+
 	//指定したbitまでシフトしてORで値を設定
 	tmp |= value << bit;
-	
+
 	*reg = tmp;
-	
+
 	return tmp;
 }
 //debug用
 unsigned int SetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, unsigned int useBit, unsigned int value)
 {
 	unsigned int mask, tmp;
-	
+
 	if( useBit <= 0 )
 		useBit = 1;
-	
+
 	printf("value\n");
 	PrintUintDelimiter(stdout, value, 4);
 	printf("shift value\n");
@@ -149,23 +155,23 @@ unsigned int SetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, u
 	printf("reg\n");
 	PrintUintDelimiter(stdout, *reg, 4);
 	printf("\n");
-	
+
 	//指定した数分の1bitを指定したbitまでシフト
 	mask = ( (1<<useBit)-1 ) << bit;
 	PrintUintDelimiter(stdout, mask, 4);
-	
+
 	//初期化(否定をすることで指定した数分の1bit以外1に該当部は0)
 	tmp = *reg & ~mask;
 	PrintUintDelimiter(stdout, tmp, 4);
-	
+
 	//指定したbitまでシフトしてORで値を設定
 	tmp |= value << bit;
 	PrintUintDelimiter(stdout, tmp, 4);
-	
+
 	//データの更新
 	*reg = tmp;
 	PrintUintDelimiter(stdout, *reg, 4);
-	
+
 	printf("\n");
 	return tmp;
 }
@@ -175,41 +181,41 @@ unsigned int SetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, u
 unsigned int GetRegisterBit(volatile unsigned int *reg, unsigned int bit, unsigned int useBit)
 {
 	unsigned int mask, tmp;
-	
+
 	if( useBit <= 0 )
 		useBit = 1;
 	//指定した数分の1bitを指定したbitまでシフト
 	mask = ( (1<<useBit)-1 ) << bit;
-	
+
 	//マスク部のみ取得して右シフトして桁を下げる
 	tmp = (*reg & mask)>>bit;
-		
+
 	return tmp;
 }
 //debug用
 unsigned int GetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, unsigned int useBit)
 {
 	unsigned int mask, tmp;
-	
+
 	if( useBit <= 0 )
 		useBit = 1;
-	
+
 	printf("reg\n");
 	PrintUintDelimiter(stdout, *reg, 4);
 	printf("\n");
-	
+
 	//指定した数分の1bitを指定したbitまでシフト
 	mask = ( (1<<useBit)-1 ) << bit;
 	PrintUintDelimiter(stdout, mask, 4);
-	
+
 	//マスク部のみ取得
 	tmp = *reg & mask;
 	PrintUintDelimiter(stdout, tmp, 4);
-	
+
 	//データを右シフトして該当部の桁を下げる
 	tmp = tmp>> bit;
 	PrintUintDelimiter(stdout, tmp, 4);
-	
+
 	printf("\n");
 	return tmp;
 }

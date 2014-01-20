@@ -6,13 +6,20 @@
 #include <unistd.h>
 
 #define MAIN_INIT
-#include "./gpio/gpio.h"
-#include "./gpio/gpio-util.h"
-#include "./gpio/gpio-i2c.h"
-#include "./gpio/gpio-arm-timer.h"
+#include "../gpio/gpio.h"
+#include "../gpio/gpio-util.h"
+#include "../gpio/gpio-i2c.h"
+#include "../gpio/gpio-arm-timer.h"
 #include "main.h"
 #include "adConvert.h"
 #include "sensor.h"
+
+#define MODE_TEMP		0x01
+#define MODE_PRESS		0x02
+#define MODE_HUMIDITY	0x03
+#define MODE_LUX		0x04
+#define MODE_LUX_OHM	0x05
+#define MODE_ALL		0xFFFF
 
 
 //湿度の温度補正用のtemp用
@@ -47,7 +54,7 @@ int main(int argc, char *argv[])
 		switch( opt )
 		{
 			case 'D':
-				g_outLevel = 1;
+				SetSensorLogLevel(1, 1);
 				break;
 			case 't':
 				mode = MODE_TEMP;

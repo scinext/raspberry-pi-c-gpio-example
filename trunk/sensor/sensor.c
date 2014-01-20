@@ -1,77 +1,285 @@
-﻿
+
 #include <stdio.h>
 //clock_gettime gccで -lrtをつけないとコンパイルエラー
 #include <time.h>
-
+//uint8_t,16_t
 #include <stdint.h>
-
+//va_...
+#include <stdarg.h>
 //抵抗値を求めるためにlog(Lnが必要)試算用にexpも使う
 #include <math.h>
+//syslog
+#include <syslog.h>
+//stat
+#include <sys/stat.h>
 
 
-#include "main.h"
 #include "sensor.h"
 
-
-extern int		g_outLevel;
 
 //湿度の温度補正用のtemp用
 extern float	g_temp;
 
+int g_consoleOutput;
+int	g_sensorLogLevel;
+//ロギング
+int SetSensorLogLevel(int level, int console)
+{
+	int old;
+	old	= g_sensorLogLevel;
+
+	g_sensorLogLevel	= level;
+	g_consoleOutput		= console;
+	return old;
+}
+void SensorLogPrintf(int level, const char *str, ...)
+{
+	if( g_sensorLogLevel >= level )
+	{
+		FILE *fp;
+		va_list args;
+
+		va_start(args, str);
+
+		if( g_consoleOutput == 1 )
+		{
+			vfprintf(stdout, str, args);
+		}
+		else
+		{
+			time_t t;
+			struct tm *ts;
+			char file[100];
+			struct stat status;
+			int exist;
+			int headerFlag;
+
+			t	= time(NULL);
+			ts	= localtime(&t);
+			strftime(file, sizeof(file), LOG_DIR "%F.log", ts);
+
+			//ファイルの存在確認ない場合はデータの見出しを挿入するのでフラグを立てる
+			headerFlag	= 0;
+			exist		= stat(file, &status);
+			
+			//後でここにグラフを作成するためall-OKに
+			mkdir(LOG_DIR, 0777);
+			fp = fopen(file, "a");
+			if( fp != NULL )
+			{
+				if( exist == -1 )
+				{
+					char date[20]; //YYYY-MM-DD
+					strftime(date, sizeof(date), "%F", ts);
+					fprintf(fp, "%s\n", date);
+					fprintf(fp, "time\tTemp\tPress\tLux\tHumidity\n");
+				}
+				vfprintf(fp, str, args);
+				fclose(fp);
+			}
+			else
+			{
+				syslog(LOG_WARNING, "log file create failed\n");
+			}
+		}
+		va_end(args);
+	}
+}
 void Drain(int pin)
 {
 	////ドレインピンを使用して放電
-	//InitPin(pin, PIN_OUT);
-	//GPIO_CLR(pin);
-	////200ms
-	//DelayMicroSecond(200000)
-	//InitPin(pin, PIN_IN);
-	
 	int i, ad1;
-	float mV1;
-	
+
 	InitPin(pin, PIN_IN);
 	PullUpDown(pin, PULL_DOWN);
-	
+
 	//ドレインピンを使用して放電 最大20ms*50 = 1s
 	for(i=0; i<50; i++)
 	{
-		ad1 = GetADCH(1, &mV1, 2);
+		ad1 = GetAD(1);
 		//20ms
-		DelayMicroSecond(20000);
+		usleep(20000);
 		//printf("d i-%d\t%d\t%f\n", i, ad1, mV1);
 		if( ad1 == 0 )
 			break;
-	}	
+	}
 	//ハイインピーダンスへ
 	PullUpDown(pin, PULL_NONE);
-	InitPin(pin, PIN_IN);
+	//InitPin(pin, PIN_IN);
 	return;
 }
+
+void GetLuxTest(int loop, unsigned int sleepTime, unsigned int lsb, int type)
+{
+	const unsigned int pin = 25;
+	const unsigned int drainPin = 23;
+	const unsigned int ch  = 1;
+
+	float mV;
+	unsigned int ad, incSleep, useTime;
+	int i;
+
+
+	InitPin(pin, PIN_OUT);
+	InitPin(drainPin, PIN_IN);
+
+	// Vc(V)=(I/C)*t
+	// t(s)=(Vc*C)/I
+	// I(A)=(Vc*C)/t	I(A)=(Vc(mV) * C(uF)) / t(us)
+	//真っ暗(豆なし)
+	//Lux use ohm 1000000
+	//    ohm     adc            9        ad      7.250977
+	//    I(A)    0.007251        I(uA)   0.000000
+	//    Lux     0.015735
+	//ret = 0.015735
+
+	//蛍光灯下
+	//pi@raspberrypi ~/tmp/cas/sensor $ sudo ./sensor -DL 100000
+	//  Lux use ohm 100000
+	//                ohm     adc          240        ad      193.359375
+	//                I(A)    1.933594        I(uA)   0.000002
+	//                Lux     4.195899
+	//ret = 4.195899
+	//pi@raspberrypi ~/tmp/cas/sensor $ sudo ./sensor -DL 1000000
+	//  Lux use ohm 1000000
+	//                ohm     adc         3664        ad      2951.953125
+	//                I(A)    2.951953        I(uA)   0.000003
+	//                Lux     6.405738
+	//ret = 6.405738
+
+
+	incSleep = sleepTime;
+	Drain(drainPin);
+	if( type )
+	{
+		for(i=0; i<loop; i++)
+		{
+			Drain(drainPin);
+			ad = GetADNoPadPin(pin, ch, incSleep);
+			mV = AtoDmV(ad, lsb);
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "%d\t%d\t%f\n", incSleep, ad>>lsb, mV);
+			incSleep += sleepTime;
+			if( mV > 3200.0 )
+				break;
+		}
+	}
+	else
+	{
+		float a, refa, inpropC;
+		const float con = 0.47e-6;
+		inpropC = 3.3 * con;
+		//毎回on/offをやるとある一定の電圧から上がらなくなるので
+		//一回のスリープがでかいときは切らないでそのまま計測する
+		GPIO_SET(pin);
+		for(i=0; i<loop; i++)
+		{
+			DelayArmTimerCounter( sleepTime*10-AD_NO_PADDING_GAP );
+
+			ad = GetADNoPad(ch);
+			mV = AtoDmV(ad, lsb);
+			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "%d\t%d\t%f\n", incSleep, ad>>lsb, mV);
+			incSleep += sleepTime;
+
+			//比例グラフのため計算上ずっと電圧が上がり続けるが
+			//RPIのgpioの電圧以上はあり得ないため、
+			//現在の時間で満電圧になる電流値を求めそれ以上の数値は出ないことから充電を終了させる
+			//実際は同じ数字になることはなく、最後のほうは充電しにくくなって
+			//ある一定の電圧以上にはならないため、実測で95%まで近づくのを確認したので
+			//コンデンサの電圧から求めた電流値と計算値が90%以上なら終了
+			refa	= inpropC / (incSleep*1e-6) * 1e+6;
+			a		= (mV*1e-3*con) / (incSleep*1e-6) * 1e+6;
+			if( a/refa > 0.93 )
+				break;
+		}
+		GPIO_CLR(pin);
+		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "ref a %f\t a %f\n", refa, a);
+	}
+	return;
+}
+
+unsigned int GetAllDrainVoltage(int pin, int ch, int drainPin, LuxRangeData *range, int quantity)
+{
+	unsigned int oldAd, ad, sumDiffAd;
+	int j, diff;
+	float mv;
+
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tall drain(s,ad,mv,diff,sum diff)\n");
+	sumDiffAd	= 0;
+	oldAd		= 0;
+
+	//一回目は差分を取らないので外で計測
+	Drain(drainPin);
+	ad		= GetADNoPadPin(pin, ch, range->sleepTime );
+	oldAd	= ad;
+	mv = AtoDmV(ad, range->lsb );
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%8d\t%d\t%f\n", range->sleepTime, ad, mv);
+	for(j=2; j<=quantity; j++)
+	{
+		Drain(drainPin);
+		ad			= GetADNoPadPin(pin, ch, range->sleepTime*j );
+
+		diff		= ad - oldAd;
+		sumDiffAd	+= diff;
+		oldAd		= ad;
+		mv = AtoDmV(ad, range->lsb );
+		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%8d\t%d\t%f\t%d\t%d\n",
+			range->sleepTime*j, ad, mv, diff, sumDiffAd);
+		if( diff < range->diff )
+			return 0;
+	}
+	return sumDiffAd;
+}
+unsigned int GetNoDrainVoltage(int pin, int ch, LuxRangeData *range, int quantity)
+{
+	unsigned int oldAd, ad, sumDiffAd;
+	unsigned int eachSleep;
+	int j, diff;
+	float mv;
+
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tno drain(s,ad,mv,diff,sum diff)\n");
+
+	eachSleep	= range->sleepTime*10 - AD_NO_PADDING_GAP;
+	sumDiffAd	= 0;
+
+	GPIO_SET(pin);
+
+	//一回目は差分を取らないので外で計測
+	DelayArmTimerCounter( eachSleep );
+	ad		= GetADNoPad(ch);
+	oldAd	= ad;
+	mv = AtoDmV(ad, range->lsb );
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%8d\t%d\t%f\n", range->sleepTime, ad, mv);
+	for(j=2; j<=quantity; j++)
+	{
+		DelayArmTimerCounter( eachSleep );
+		ad		= GetADNoPad(ch);
+
+		diff		= ad - oldAd;
+		sumDiffAd	+= diff;
+		oldAd		= ad;
+		mv = AtoDmV(ad, range->lsb );
+		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%8d\t%d\t%f\t%d\t%d\n",
+			range->sleepTime*j, ad, mv, diff, sumDiffAd);
+		if( diff < range->diff )
+			return 0;
+	}
+	GPIO_CLR(pin);
+
+	return sumDiffAd;
+}
+//10ms以上ならADコンバートでかかる時間
+//約0.027ms(27us)を足しても誤差としてで収まる(予想)
+#define NO_DRAIN	10000
 float GetLux()
 {
 	const unsigned int pin = 25;
 	const unsigned int drainPin = 23;
 	const unsigned int ch  = 1;
-	float mV1, mV2, mVAvg, mVDiff, lux, a;
-	int ad1, ad2, adAvg, adDiff, adSub;
-	int i, j, lsb;
-	int quantity = 5;
 
-	int range[] = {
-		/* LSB=2 */
-		/*us*/25, 100, 500,
-		/*ms*/1000, 3000, 
-		
-		/*LSB=2*/
-		///*ms*/15000, 30000, 160000, 300000, 800000
-		/*s *///1600000
-		
-		/* LSB=1 */
-		/*ms*/8000, 16000, 80000, 160000,
-		/*s*/1000000
-	};
-	
+	unsigned int diffAd, quantity;
+	float mv, a, lux, avgAd;
+	int i;
+
 	//12bitを2bit削ってノイズ除去したとき
 	//25 		(25us)		-> 10,000uA
 	//100		(100us)		->  1,000uA
@@ -86,14 +294,28 @@ float GetLux()
 	//1600000	(1.6s)		->		0.001uA 0.1s余裕を入れてある 長いのでなし
 	//豆 1Mohm		9.667969mV		0.009668uA	Lux	0.020979
 	//コンデンサ    0.000030mV/us	0.014200uA	Lux	0.030814
-	
+
 	//0.1uA以降は時間がかかるのでノイズ上等で12bitを11bitにする
 	//8000		(8ms)		->		0.1uA(7500		+ 500us)
 	//16000		(16ms)		->		0.05uA(15000	+ 1000us)
 	//80000		(80ms)		->		0.01uA(75000	+ 5000us)
 	//160000	(160ms)		->		0.005uA(150000	+ 10000us)
 	//800000	(800ms)		->		0.001uA(750000	+ 50000us) 長いのでなし
-	
+	LuxRangeData range[] = {
+		{        25,	20,	2},	//us
+		{       100,	20,	2},
+		{       500,	20,	2},
+		{      1000,	 8,	2},	//ms
+		{	   3000,	 8,	2},
+		//{     10000,	 4,	2},
+		{	  16000,	 4,	2},
+		{	  30000,	 4,	2},
+		//{    100000,	 2,	1},
+		{	 160000,	 2,	1},
+		{	 300000,	 2,	1},
+		{	 800000,	 2,	1},
+		{   1000000,	 2,	1}	//s
+	};
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "  Lux use condensare\n");
 
@@ -101,97 +323,75 @@ float GetLux()
 
 	for(i=0; i<ARRAY_SIZE(range); i++)
 	{
-		mVAvg	= 0;
-		adAvg	= 0;
-		//捨てるbit数
-		//3.3/2^10 -> 3.2mV
-		lsb = range[i] < 8000 ? AD_LSB : 1;
-		//lsb = 2;
-		
-		//指定秒数のときの差分を満たした時に充電上昇値を取得し始める
-		if( range[i] < 500 )
-			adDiff = 10;
-		else if( range[i] < 1000 )
-			adDiff = 4;
-		else if( range[i] < 3000 )
-			adDiff = 2;
-		else
-			adDiff = 1;
-			
-		//レンジが10msを超えたら突入電流の影響がかなり減るので平均をとる個数を減らす
-		//quantity = range[i] >= 10000 ? 3 : 5;
-		quantity = 5;
-			
-		//放電
-		Drain(drainPin);
-
-		//高分解能してるのでsleepを10倍
-		ad1 = PinGetADCH(pin, ch, NULL, range[i] * 10, lsb);
-		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\ti - %d\t%d\t%u\n", i, ad1, range[i]);
-		
-		//ad1が0ならまったく望みなしなので次
-		if( ad1 == 0 )
-			continue;
 		//この時点でコンデンサの充電電圧から電流を計測すると
 		//突入電流の影響で計算上かなり上の数値が出るため
-		//倍の時間計測して1us当たりの充電電圧を計算しその上昇値を利用する		
-		
-		//ad2 = GetADCH(ch, &mV2, lsb);
-		//printf("pre i-%d\t%d\t%f\n", i, ad2, mV2);
-		for(j=2; j<=quantity; j++)
-		{	
-			ad2 = PinGetADCH(pin, ch, NULL, range[i] * 10, lsb);
-			//Drain(drainPin);
-			//ad2 = PinGetADCH(pin, ch, NULL, (range[i]*j) * 10, lsb);
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%d\t%u\n", ad2, range[i]*j );
+		//倍の時間計測して1us当たりの充電電圧を計算しその上昇値を利用する
+		Drain(drainPin);
+		quantity = 5;
 
-			adSub = ad2 - ad1;
-			if( adSub < adDiff )
-			{
-				//15ms以下の場合で2回目のほうがなぜか低いか同じ場合次でできる可能性が低いのでスキップ
-				if( ad2 <= ad1  && range[i] < 15000)
-					++i;
-				break;
-			}
-			else
-			{
-				//差分の平均値を求める
-				adAvg += adSub;
-				ad1 = ad2;
-			}
-		}
-		if( j > quantity )
-		{
-			float avg;
-			//平均値を求めるため
-			//差分のため全体の個数-1で平均値に
-			--quantity;
-			avg		= (float)adAvg / quantity;
-			//res	= (float)VREF / ( 1<<(AD_RESOLUTION-AD_LSB) );
-			mVAvg	= avg * ((float)VREF / (1<<(AD_RESOLUTION-lsb)) );
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tsum\tadc\t%u\n", adAvg);
-			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tavg\tadc\t%f\tad\t%f\n", avg, mVAvg);
+		if( range[i].sleepTime < NO_DRAIN )
+			diffAd = GetAllDrainVoltage(pin, ch, drainPin, &range[i], quantity);
+		else
+			diffAd = GetNoDrainVoltage(pin, ch, &range[i], quantity);
 
-			break;
-		}
+		if( diffAd == 0 )
+			continue;
+
+		break;
 	}
-	//測定できなかった
-	if( adAvg == 0 )
-		return 0;
 
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t%uus\t%f\n", range[i], mVAvg);
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t1us\t%f\n", mVAvg/range[i]);
+	//電圧の差分の平均値を求める
+	avgAd = (float)diffAd/(quantity-1);
+	mv = AtoDmV(avgAd, range[i].lsb);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t%uus\t%f\t%f\n", range[i].sleepTime, avgAd, mv);
+
 	// Vc(V)=(I/C)*t
 	// t(s)=(Vc*C)/I
 	// I(A)=(Vc*C)/t	I(A)=(Vc(mV) * C(uF)) / t(us)
 
-	a = (((mVAvg/range[i])*1e-3)*0.47e-6)/(1e-6) * 1e+6;
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tI(uA)\t%f\n", a);
+	//a = ((mv*1e-3)*0.47e-6)/(range[i].sleepTime*1e-6) * 1e+6;
 
-	//100Luxで46uA(5v), 1uAで2.17Lux
-	lux = a * 2.17;
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\tLux\t%f\n", lux);
+	//a = (mv*0.47*1e-9) / (range[i].sleepTime*1e-6) * 1e+6;
+	//a = (mv*0.47*1e-3) / (range[i].sleepTime) * 1e+6;
+	//a = (mv*0.47*1e+3) / range[i].sleepTime;
+
+	//a = ((mv*1e-3)*(0.47*1e-6))*1e+6/(range[i].sleepTime*1e-6);
+	//a = (mv*1e-3*0.47)/(range[i].sleepTime*1e-6);
+	//a = (mv*0.47)/(range[i].sleepTime*1e-3);
+	a = (mv*0.47)/(range[i].sleepTime*1e-3);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "I(uA)\t%f\n", a);
 	
+	
+	//温度補正グラフ[Relative Photocurrent(相対光電流) : Ambient Temperature(周囲温度)]
+	float temp, correction;
+	//温度によって流れる光電流が変化する? Light source A(以下A) White LED(以下L)
+	//基準	5v 25度 -> 100%
+	//A 10度 -> 90%
+	//L 80度 -> 130%
+	//傾き
+	//A	| (100-90)/(25-10)	-> 10/15 -> 25度を基準に1度ごと0.66..%変わる
+	//L | (130-100)/(80-25) -> 30/55 -> 25度を基準に1度ごと0.54(54)...%変わる
+	//切片
+	//A | 100-(25*0.67)	-> 83.25%
+	//L | 100-(25*0.55)	-> 86.25%
+	//式
+	//A | y=0.67*x + 83.25
+	//L | y=0.55*x + 86.25
+	//温度補正用
+	if( g_temp == 0 )
+		temp = GetTemp();
+	else
+		temp = g_temp;
+	correction = 0.67*temp + 83.25;
+	a /= (correction/100);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "temp correction\ttemp\t%f\tcorrection\t%.2f%%\n", temp, correction);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "correction I(uA)\t%f\n", a);
+	
+	//A	| 5v 100Lux I(uA)      t 46       | 1uA  2.17Lux
+	//L | 5v 100Lux I(uA) m 15 t 33 M 73  | 1uA  3.03Lux
+	lux = a * 2.17;
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "Lux\t%f\n", lux);
+
 	return lux;
 }
 float GetLuxOhm(int ohm)
@@ -208,7 +408,8 @@ float GetLuxOhm(int ohm)
 	sleepTime = 100000;
 
 	DelayMicroSecond(sleepTime);
-	adc = GetADCH(ch, &ad, AD_LSB);
+	adc = GetAD(ch);
+	ad = AtoDmV(adc, AD_LSB);
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tohm\tadc\t%8d\tad\t%f\n", adc, ad);
 
 	GPIO_CLR(pin);
@@ -219,6 +420,17 @@ float GetLuxOhm(int ohm)
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tI(A)\t%f\tI(uA)\t%f\n", a, a*1e+6);
 	a *= 1e+6;
+	
+	//温度補正
+	float temp, correction;
+	if( g_temp == 0 )
+		temp = GetTemp();
+	else
+		temp = g_temp;
+	correction = 0.67*temp + 83.25;
+	a /= (correction/100);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "temp correction\ttemp\t%f\tcorrection\t%.2f%%\n", temp, correction);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "correction I(uA)\t%f\n", a);
 
 	//100Luxで46uA(5v), 1uAで2.17Lux
 	lux = a * 2.17;
@@ -248,7 +460,8 @@ float GetHumidity()
 
 		//放電用 0.1s
 		DelayMicroSecond(100000);
-		adc = GetADCH(ch, &ad, AD_LSB);
+		adc = GetAD(ch);
+		ad = AtoDmV(adc, AD_LSB);
 		if( adc != 0 )
 		{
 			//放電しきってなかったらもう一度
@@ -257,28 +470,44 @@ float GetHumidity()
 
 		sleepTime *= 10;
 
-		//高分解能してるのでsleepを10倍
-		adc = PinGetADCH(pin, ch, &ad, sleepTime*10, AD_LSB);
-		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    ch sleepTime %d    %2d    adc %8d    volt %fmV\n", sleepTime, ch, adc, ad);
+		//adc = GetADpin(pin, ch, sleepTime);
+		//adc = GetADmcp3204(pin, ch, sleepTime);
+		adc = GetADNoPadPin(pin, ch, sleepTime);
+		ad = AtoDmV(adc, 2);
+		adc >>= 2;
+		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    ch sleepTime %d    %2d    adc %8d    volt %fmV\n",
+			sleepTime, ch, adc, ad);
 
 		if( adc > 10 )
 			break;
 	}
 
-	//adをミリボルトからボルトへ
-	ad /= 1000;
+
 	//取得した値から抵抗値を試算 テスト時は150オーム
 	//R=T/(-C*ln(-(Et/Vcc)+1))
 	//Et=Vcc(1-e^(-T/CR))
 	//T=R*(-C*LN(-(Et/Vcc)+1))
 
 	//計算に必要な数字の表示
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    Vcc(V) 3.3,  C(uF) 0.022,  T(us)  %d,  Et(mV)  %f \n", sleepTime, ad);
-	r = sleepTime/(-0.022 * log(-1*(ad/3.3)+1));
-	e = 3.3*(1-exp(-1*((sleepTime)/(0.022*r))));
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    R =   %f  Et =    %f\n", r, e);
-	t = 150*(-0.022 * log(-1*(ad/3.3)+1));
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    R==150 -> T =    %f\n", t);
+	const int 	ohm		= 1e+3;		//150(ohm) //1e+6
+	//pinの出力電圧が低い可能性がある
+	//3.2～3.1あたりにすると高抵抗時の充電の値が合う
+	const float	refV	= 3300.0;	//3.3; //3.2;
+	const float con		= 0.022;	//0.022(uF)
+
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    Vcc(V) %.1f,  C(uF) %.3f,  T(us)  %d,  Et(mV)  %f \n",
+		refV, con, sleepTime, ad);
+
+	//adをミリボルトからボルトへ
+	//r = (sleepTime*1e-6)/( (-1*(con*1e-6)) * log( (-1 * (ad/refV)) +1 ) );
+	//e = refV * ( 1 - exp( -1 * ( (sleepTime*1e-6)/((con*1e-6)*r) ) ) );
+	//t = ohm*( (-1*(con*1e-6)) * log( (-1*(ad/refV)) + 1)) * 1e+6;
+	r = sleepTime/( (-1*con) * log( (-1 * (ad/refV)) +1 ) );
+	e = refV * ( 1 - exp( -1 * ( sleepTime/(con*r) ) ) );
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    R =   %f  Et(mV) =    %f\n", r, e);
+
+	t = ohm*( (-1*con) * log( (-1*(ad/refV)) + 1));
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    R==%d -> T =    %f\n", ohm, t);
 
 
 	//抵抗を対数値へ

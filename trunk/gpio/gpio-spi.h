@@ -77,10 +77,14 @@ typedef enum _SpiMode{
 }SpiMode;
 
 //CLK Register
-//データシート p21 計算式はここ SPIx_CLK = system_clock / 2*(speed_filed+1)
+//間違えてた データシート p21 計算式はここ SPIx_CLK = system_clock / 2*(speed_filed+1)
+//あってるのはちゃんとしたデータがまとまってる p156 SCLK = Core Clock(250MHz) / CDIV
+//http://elinux.org/index.php?title=RPi_SPI より
+//データシートでは「2のべき乗でなければならない」と書かれているが
+//おそらくは正しくは「2の倍数でなければならない」
+
 #define SPI_CLK_REGISTER_CDIV	0	//転送用のクロックの設定 SCLK=CoreClock/CDIVになる 0-65536の間
 	#define SPI_CLK_CDIV_USE_BIT	16
-
 /*
 ALT0                                 |ALT0        
 SPI0 MOSI | GPIO_10 |19  20| GND     |          
@@ -117,4 +121,5 @@ int SpiTransferMulitple(uint8_t *td, uint8_t *rd, unsigned int len);
 int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len, int pin, unsigned int sleepTime);
 
 
+int SpiTestMCP3204(uint8_t *td, uint8_t *rd, unsigned int len, int pin, unsigned int sleepTime);
 #endif

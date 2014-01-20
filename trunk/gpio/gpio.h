@@ -59,7 +59,7 @@ EXTERN volatile unsigned int *gpio;
 #define PAGE_SIZE (4*1024)
 #define BLOCK_SIZE (4*1024)
 
-//system clock 250MHz
+//system clock 250MHz core clockとしても記載あり
 #define SYS_CLOCK	250000000
 
 //信号レベル
@@ -92,15 +92,18 @@ typedef enum _RpiRevision{
 ////0x20001C	gpio(0x200000) + 0x1C(sizeof(int)*7)
 //#define GPIO_SET(pin) *(gpio+7) = 1<<pin
 //#define GPIO_SETo32(pin) *(gpio+8) = 1<<(pin-32)
-#define GPIO_SET(pin) *(gpio+GPIO_SET_0) = 1<<pin
-#define GPIO_SETo32(pin) *(gpio+GPIO_SET_1) = 1<<(pin-32)
+#define GPIO_SET(pin) *(gpio+GPIO_SET_0) = 1<<(pin)
+#define GPIO_SETo32(pin) *(gpio+GPIO_SET_1) = 1<<((pin)-32)
 
 ////0x20001C	gpio(0x200000) + 0x1C(sizeof(int)*7)
 //#define GPIO_CLR(pin) *(gpio+10) = 1<<pin
 //#define GPIO_CLRo32(pin) *(gpio+11) = 1<<(pin-32)
-#define GPIO_CLR(pin) *(gpio+GPIO_CLR_0) = 1<<pin
-#define GPIO_CLRo32(pin) *(gpio+GPIO_CLR_1) = 1<<(pin-32)
+#define GPIO_CLR(pin) *(gpio+GPIO_CLR_0) = 1<<(pin)
+#define GPIO_CLRo32(pin) *(gpio+GPIO_CLR_1) = 1<<((pin)-32)
 
+
+#define GPIO_GET(pin) (*(gpio+GPIO_LEV_0) >> (pin)) & 0x01
+#define GPIO_GETo32(pin) (*(gpio+GPIO_LEV_1) >> (pin)) & 0x01
 
 //とりあえず下記はrev2
 
@@ -172,6 +175,14 @@ typedef enum _RpiRevision{
 #define PIN_ALT3	0x7 //111
 #define PIN_ALT4	0x3 //011
 #define PIN_ALT5	0x2 //010
+
+
+#define SLEEP_LIMIT_1	1000	//1ms
+#define SLEEP_LIMIT_2	100000	//100ms
+#define SLEEP_LIMIT_3	1000000	//1s
+#define SLEEP_WAIT_1	250		//0.25ms
+#define SLEEP_WAIT_2	25000	//25ms
+#define SLEEP_WAIT_3	250000	//250ms
 
 void InitGpio();
 

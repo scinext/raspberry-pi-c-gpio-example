@@ -67,6 +67,8 @@
 //Free running counter 0-31 data
 
 void DelayArmTimerCounter(unsigned int delayCount);
+unsigned int GetArmTimer();
+
 unsigned int ArmTimerSetFreeScale(unsigned int divider);
 void PrintArmTimerRegister();
 void PrintArmTimerCounter();
