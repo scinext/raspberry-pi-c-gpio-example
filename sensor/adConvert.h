@@ -7,13 +7,29 @@
 #define AD_LSB			2		//ICの分解能で精度の問題で捨てるbit数
 #define VREF			3300	//基準ボルト(mV)
 
+//通常のspiでの送受信
+#define AD_PIN_GAP		100	//データ送信からADコンバートが終了するまでの時間(0.1us単位)
+
+//短縮した送受信(レジスタを使ったSPIで必要ないパディングを削除したとき)
+#define AD_NO_PADDING_GAP		73	//7.3us
 
 int InitAD();
 int UnInitAD();
 
+static inline float AtoDmV(unsigned int ad, int lsbBit)
+{
+	//下位8bitのみと次のデータを使用(取得データの下位bitは精度の問題で捨てる)
+	unsigned int lsbAd, maxAd;
+	lsbAd = ad>>lsbBit;
+	maxAd = 1<<(AD_RESOLUTION-lsbBit);
+	return  lsbAd * ((float)VREF / maxAd);
+}
 
 //捨てるlsbを設定
-int PinGetADCH(int pin, int ch, float *outADVolt, unsigned long sleepTime, unsigned int lsbBit);
-int GetADCH(int CH, float *outADVolt, unsigned int lsbBit);
+unsigned int GetAD(int ch);
+unsigned int GetADpin(int pin, int ch, unsigned long sleepTime);
 
+unsigned int GetADNoPad(int ch);
+unsigned int GetADNoPadPin(int pin, int ch, unsigned int sleepTime);
+unsigned int GetADmcp3204(int pin, int ch, unsigned long sleepTime);
 #endif

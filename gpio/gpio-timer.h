@@ -34,6 +34,7 @@
 
 
 void DelayMicroSecond(unsigned int delay);
+unsigned int GetSysCounter();
 void PrintSysTimerRegister();
 int InitSysTimer();
 int UnInitSysTimer();

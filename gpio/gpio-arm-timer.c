@@ -23,33 +23,50 @@ char *armTimer_map = NULL;
 volatile unsigned int *armTimer = NULL;
 
 //分解能が入る 1なら詳細 0なら通常
-int armTimerResolution;
+unsigned int armTimerResolution;
+unsigned int sleepLimit1;
+unsigned int sleepLimit2;
+unsigned int sleepLimit3;
 
 //単位が1usか0.1us、0.1usのときはどうしても2counter分実際とずれる
 //while( *(armTimer+ARM_TIMER_COUNTER) < over )が2counter分使う?ので使用するときは-2を忘れないようにする
 void DelayArmTimerCounter(unsigned int delayCount)
 {
-	unsigned int over, useLimit;
+	unsigned int over;
 
 	if( armTimer == NULL || delayCount == 0)
 		return;
 		
 	//unsigned int test;
 	//test = *(armTimer+ARM_TIMER_COUNTER);
-	
+		
 	//ある程度大きい数をカウンタのループで監視するとcpuの処理を使いすぎるので
 	//sleepを混ぜ、その間に進んだカウンタ分を計測し、
 	//元のカウンタからスリープ中に進んだ分を差し引きして1ms以下になったら監視を開始する
 	over = *(armTimer+ARM_TIMER_COUNTER)+delayCount;
 	
-	useLimit = armTimerResolution==1 ? 10000 : 1000;
-	if( delayCount > useLimit )
+	if( delayCount > sleepLimit1 )
 	{
 		int waitCountStart;
-		while( delayCount >= useLimit )
+		//over 1s
+		while( delayCount >= sleepLimit3 )
 		{
 			waitCountStart	= *(armTimer+ARM_TIMER_COUNTER);
-			usleep(250);
+			usleep(SLEEP_WAIT_3);
+			delayCount		-= *(armTimer+ARM_TIMER_COUNTER) - waitCountStart;
+		}
+		//over 100ms
+		while( delayCount >= sleepLimit2 )
+		{
+			waitCountStart	= *(armTimer+ARM_TIMER_COUNTER);
+			usleep(SLEEP_WAIT_2);
+			delayCount		-= *(armTimer+ARM_TIMER_COUNTER) - waitCountStart;
+		}
+		//over 1ms
+		while( delayCount >= sleepLimit1 )
+		{
+			waitCountStart	= *(armTimer+ARM_TIMER_COUNTER);
+			usleep(SLEEP_WAIT_1);
 			delayCount		-= *(armTimer+ARM_TIMER_COUNTER) - waitCountStart;
 		}
 	}
@@ -59,9 +76,13 @@ void DelayArmTimerCounter(unsigned int delayCount)
 	//printf("diff %u\n", *(armTimer+ARM_TIMER_COUNTER) - test);
 	return;
 }
-
+unsigned int GetArmTimer()
+{
+	return *(armTimer+ARM_TIMER_COUNTER);
+}
 unsigned int ArmTimerSetFreeScale(unsigned int divider)
 {
+	//datasheet p197
 	//sys_clk/scale+1 sys_clk=250MHz?
 	
 	//int lim = 1;
@@ -92,11 +113,17 @@ unsigned int ArmTimerSetFreeScale(unsigned int divider)
 		case 1:
 			//詳細の時には0.1ms
 			SetRegisterBit(armTimer+ARM_TIMER_C, ARM_TIMER_C_REGISTER_FREE_SCALER, ARM_TIMER_C_FREE_SCALER_USE_BIT, 24);
+			sleepLimit1	= SLEEP_LIMIT_1*10;
+			sleepLimit2	= SLEEP_LIMIT_2*10;
+			sleepLimit3	= SLEEP_LIMIT_3*10;
 			break;
 		case 0:
 		default:
 			//標準では1msにする
 			SetRegisterBit(armTimer+ARM_TIMER_C, ARM_TIMER_C_REGISTER_FREE_SCALER, ARM_TIMER_C_FREE_SCALER_USE_BIT, 249);
+			sleepLimit1	= SLEEP_LIMIT_1;
+			sleepLimit2	= SLEEP_LIMIT_2;
+			sleepLimit3	= SLEEP_LIMIT_3;
 			break;
 	}
 	return 1;

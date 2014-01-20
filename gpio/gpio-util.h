@@ -45,6 +45,23 @@ void DelayNanoSecondLow(struct timespec *startTs, unsigned long delayNanoSecond)
 
 unsigned int TimeDiff(struct timespec *startTs, struct timespec *endTs, long sleep);
 
+static inline void TimeDiffSecond(struct timespec *startTs, struct timespec *endTs)
+{
+	unsigned int sec, nsec;
+	if( endTs->tv_sec >= startTs->tv_sec )
+		sec = endTs->tv_sec - startTs->tv_sec;
+	else
+		sec =  startTs->tv_sec - endTs->tv_sec;
+	
+	if( endTs->tv_nsec >= startTs->tv_nsec )
+		nsec = endTs->tv_nsec - startTs->tv_nsec;
+	else
+		nsec = startTs->tv_nsec - endTs->tv_nsec;
+		
+	printf("s %u, us %u\n", sec, nsec/1000);
+	return;
+}
+
 #define NANO	(nanoSecond)
 #define MICRO	(nanoSecond * 1000)
 #define MILLI	( MICRO(nanoSecond) * 1000 )

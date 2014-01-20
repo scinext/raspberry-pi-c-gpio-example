@@ -23,8 +23,7 @@ char *sysTimer_map = NULL;
 volatile unsigned int *sysTimer = NULL;
 
 //10ms以上をカウンタで監視すると7segがちらつく
-//ある程度大きい数ならclock_nanosleepにする
-#define SYS_SLEEP	1000
+//ある程度大きい数ならusleepにする
 void DelayMicroSecond(unsigned int delayMicroSecond)
 {
 	uint32_t delayedTime, start, hiCounter;
@@ -40,13 +39,13 @@ void DelayMicroSecond(unsigned int delayMicroSecond)
 	SysTimerDprintf("start time %u,  delay %u,  delayed time %u\n", start, delayMicroSecond, delayedTime );
 	
 	//単位はマイクロ?
-	if( delayMicroSecond > SYS_SLEEP )
+	if( delayMicroSecond > SLEEP_LIMIT_1 )
 	{
 		int waitCountStart;
-		while( delayMicroSecond >= SYS_SLEEP )
+		while( delayMicroSecond >= SLEEP_LIMIT_1 )
 		{
 			waitCountStart		= *(sysTimer+SYS_TIMER_CLO);
-			usleep(250);				
+			usleep(SLEEP_WAIT_1);				
 			delayMicroSecond	-= *(sysTimer+SYS_TIMER_CLO) - waitCountStart;
 		}
 	}
@@ -55,7 +54,7 @@ void DelayMicroSecond(unsigned int delayMicroSecond)
 	{
 		//ハイカウンタがカウントされるまで待機
 		while( *(sysTimer+SYS_TIMER_CHI) > hiCounter )
-			;
+			usleep(SLEEP_WAIT_3); //250ms
 	}
 	while( *(sysTimer+SYS_TIMER_CLO) < delayedTime )
 		;
@@ -64,6 +63,11 @@ void DelayMicroSecond(unsigned int delayMicroSecond)
 	
 	return;
 }
+unsigned int GetSysCounter()
+{
+	return *(sysTimer+SYS_TIMER_CLO);
+}
+
 void PrintSysTimerRegister()
 {
 	PrintRegStatus(stdout, sysTimer, SYS_TIMER_CS,  "SYS_TIMER_CS    ",	1);

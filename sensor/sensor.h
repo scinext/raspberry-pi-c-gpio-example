@@ -3,11 +3,11 @@
 #define SENSOR_H
 
 //sensorのみの場合とcasで分けるためにわざとここに記述
-#include "./gpio/gpio.h"
-#include "./gpio/gpio-util.h"
-#include "./gpio/gpio-i2c.h"
-#include "./gpio/gpio-arm-timer.h"
-#include "adConvert.h"
+#include "../gpio/gpio.h"
+#include "../gpio/gpio-util.h"
+#include "../gpio/gpio-i2c.h"
+#include "../gpio/gpio-arm-timer.h"
+#include "./adConvert.h"
 
 //取得するi2cのアドレス 0x5d->LPS331
 #define I2C_ADDR_LPS331 0x5d
@@ -33,12 +33,27 @@
 	#define LPS331_ACTIVE_ON			0x90
 	#define LPS331_ACTIVE_OFF			0x00
 
+typedef struct{
+	int	sleepTime;
+	int diff;
+	int lsb;
+}LuxRangeData;
+
+
+#define SENSOR_LOG_LEVEL_0	0
+#define SENSOR_LOG_LEVEL_1	1
+#define LOG_DIR					"/var/log/cas/"
+int SetSensorLogLevel(int level, int console);
+void SensorLogPrintf(int level, const char *str, ...);
 void Drain(int pin);
+void GetLuxTest(int loop, unsigned int sleepTime, unsigned int lsb, int type);
 float GetLux();
 float GetLuxOhm(int ohm);
 
 float GetHumidity();
 
+int InitLps331();
+int UnInitLps331();
 float GetPress();
 float GetTemp();
 

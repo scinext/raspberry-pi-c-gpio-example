@@ -140,64 +140,40 @@ unsigned int SpiSetClock(unsigned int speed)
 	//レジスタアドレス
 	//#define SPI_CLOCK	0x0008	//0x7E20 4008  CLK SPI Master Clock Divider
 
-	//計算式
-	//データシート p21
-	//SPIx_CLK		= system_clock / 2*(speed_filed+1)
-	//system_clock	= 250MHz
-	//speed_filed	= 0 -> 125MHz
-
-	//変形
-	//speed_filed = ((system_clock/2)/SPIx_CLK) - 1
-
 	/*
-	 *	CDIV = 0 -> 125MHz
-	 *	0 		125.00MHz	8ns(MAX Speed)
-	 *	2 		41.67MHz 	25ns
-	 *	4 		25.00MHz 	40ns
-	 *	8 		13.89MHz 	72ns
-	 *	16 		7.35MHz 	126ns
-	 *	32 		3.79Mhz 	264ns
-	 *	64 		1.92MHz 	520ns
-	 *	128 	968.99KHz	1.03us
-	 *	256 	486.38KHz	2.06us
-	 *	512 	243.67KHz	4.10us
-	 *	1024 	121.95KHz	8.20us
-	 *	2048 	61.01KHz	16.39us
-	 *	4096 	30.51KHz	32.78us
-	 *	8192 	15.26KHz	65.54us
-	 *	16384 	7.63KHz 	121.08us
-	 *	32768 	3.82KHz 	262.15us
-	 *	65536 	1.91KHz 	524.30us(MIN speed)
-	 *
-	 *	MCP3204
-	 *		clock 5v->2MHz,	3v->1MHz
-	 *			3.3-> (2-1)MHz/(5-2.7)v*(3.3v-2.7v)+1MHz ->1.26MHzまでいける?
-	 *		1.65MHz
-	 *			CDIV->75 CLK->1.64MHz(610ns)
-	 *
+	 *	MCP3204(clock)
+	 *		5v ->2MHz		2.7v ->1MHz
+	 +			5-2.7	->2.3v
+	 *			1v		->1MHz/2.3	->0.43
+	 *			3.3-2.7	->0.6		->0.43*0.6	->0.26
+	 *			2.6+0.6 ->1+0.26
+	 *			3.3 	->1.26MHzまでいける?
 	 */
-
+	 
 	unsigned int clockDivider, clkClock;
-
 	//初期化
 	SetRegisterBit(spi+SPI_CLOCK, SPI_CLK_REGISTER_CDIV, SPI_CLK_CDIV_USE_BIT, 0);
+	
+	//SCLK = Core Clock(250MHz) / CDIV
+	
+	clockDivider = SYS_CLOCK/speed;
+	//データシートp156より 0の時は65536として扱われる
+	clockDivider = clockDivider > 65535 ? 0 : clockDivider;
+	
+	//奇数の場合は切り捨てられる
+	clockDivider -= (clockDivider%2)==1 ? 1 : 0;
 
-	clockDivider = ((SYS_CLOCK/2)/speed) - 1;
-
-	//MAX 65535
-	//65535 = ( 1<<CLK_CDIV_USE_BIT ) - 1;
-	clockDivider = clockDivider > 65535 ? 65535 : clockDivider;
-
-	clkClock = SYS_CLOCK/(2*(clockDivider+1));
+	clkClock = SYS_CLOCK/clockDivider;
 	//もし計算上指定した数より周波数が高くなってたらDividerを一つ上げる
 	if( clkClock > speed && clockDivider < 65535 )
 	{
 		SpiDprintf("clock %u, divider %u -> Clock %u\n", speed, clockDivider, clkClock);
-		++clockDivider;
-		clkClock = SYS_CLOCK/(2*(clockDivider+1));
+		clockDivider += 2;
+		clkClock = SYS_CLOCK/clockDivider;
 	}
 	SpiDprintf("clock %u, divider %u -> Clock %u\n", speed, clockDivider, clkClock);
-
+	
+	
 	SetRegisterBit(spi+SPI_CLOCK, SPI_CLK_REGISTER_CDIV, SPI_CLK_CDIV_USE_BIT, clockDivider);
 	return clkClock;
 }
@@ -357,11 +333,13 @@ int SpiTransferMulitple(uint8_t *td, uint8_t *rd, unsigned int len)
 int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len, int pin, unsigned int sleepTime)
 {
 	unsigned int i;
-
+	unsigned int startCounter, diffCounter;
+	
+	
 	if( len < 0 )
 	{
 		perror("not data");
-		return;
+		return 0;
 	}
 	SpiDprintf("spi transfer length %d\n", len);
 
@@ -374,12 +352,17 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 	//pinの初期化
 	InitPin(pin, PIN_OUT);
 
-	//struct timespec startTs, endTs;
-	//clock_gettime(CLOCK_MONOTONIC, &startTs);
+
+	//高分解能(0.1us)で10回ループしておよそ142～150の進み具合だった
+	//system counterではほぼ15usで安定していた
+	//抵抗値と充電電圧から計算したADコンバータの計測開始までがおよそ5usだったので
+	//計測終了後から余分に9usから10usかかると思われる
+	
+	startCounter = GetArmTimer();
 	//pinをHighへ
 	GPIO_SET(pin);
 	DelayArmTimerCounter(sleepTime);
-
+	
 	for(i=0; i<len; i++)
 	{
 		SpiDprintf("\tsend td[%d]\n");
@@ -422,7 +405,7 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 				
 				//TAを0にして完了
 				SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 0);
-				return -1;
+				return 0;
 			}
 		}
 
@@ -433,9 +416,9 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 	
 	//pinをLowへ
 	GPIO_CLR(pin);
-	//clock_gettime(CLOCK_MONOTONIC, &endTs);
-	//TimeDiff(&startTs, &endTs, sleepTime);
-
+	diffCounter = GetArmTimer() - startCounter;
+	SpiDprintf("arm counter %u\n", diffCounter);
+	
 	SpiDprintf("\tsend complete\n");
 	//DONEフラグが1になるまで(0の間は待機)
 	SpiDprintf("\t\twait DONE(bit-%d)->1\n", SPI_CS_REGISTER_DONE);
@@ -447,5 +430,73 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 
 	SpiDprintf("complete transfer\n");
 
-	return 0;
+	//終了時は掛かった計測時間を返すように
+	return diffCounter;
+}
+
+int SpiTestMCP3204(uint8_t *td, uint8_t *rd, unsigned int len, int pin, unsigned int sleepTime)
+{
+	unsigned int i;
+
+	if( len < 0 )
+	{
+		perror("not data");
+		return 0;
+	}
+	SpiDprintf("spi transfer length %d\n", len);
+
+	//TXとRXのクリア
+	SpiClear(SPI_CLR_ALL);
+
+	//TAを1に
+	SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 1);
+
+	//pinの初期化
+	InitPin(pin, PIN_OUT);
+
+	unsigned int startCounter, endCounter;
+	//counter = GetSysCounter();
+
+		//TXDフラグが1になるまで(0の間は待機)
+		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TXD, 1)==0 )
+			;
+		
+		startCounter = GetArmTimer();
+		GPIO_SET(pin);
+		DelayArmTimerCounter(0);
+		*(spi+SPI_FIFO) = td[0];
+		
+		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_RXD, 1) == 0 )
+			;
+		rd[0] = *(spi+SPI_FIFO);
+		
+		
+		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TXD, 1)==0 )
+			;
+		*(spi+SPI_FIFO) = td[1];
+		
+		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_RXD, 1) == 0 )
+			;
+		rd[1] = *(spi+SPI_FIFO);
+		
+		GPIO_CLR(pin);
+		endCounter = GetArmTimer();
+		printf("arm counter %u\n", endCounter - startCounter);
+		
+		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TXD, 1)==0 )
+			;
+		*(spi+SPI_FIFO) = td[2];
+		
+		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_RXD, 1) == 0 )
+			;
+		rd[2] = *(spi+SPI_FIFO);
+		
+	//DONEフラグが1になるまで(0の間は待機)
+	while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_DONE, 1)==0 )
+		;
+
+	//TAを0にして完了
+	SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 0);
+
+	return endCounter - startCounter;
 }
