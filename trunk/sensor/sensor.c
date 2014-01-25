@@ -12,6 +12,8 @@
 #include <syslog.h>
 //stat
 #include <sys/stat.h>
+//passwd
+#include <pwd.h>
 
 
 #include "sensor.h"
@@ -70,6 +72,14 @@ void SensorLogPrintf(int level, const char *str, ...)
 				if( exist == -1 )
 				{
 					char date[20]; //YYYY-MM-DD
+					//const char userName[] = "pi"; //ファイルの所有者をpiにする(ハードコード)
+					//struct passwd *pw = NULL;
+					//作成時のみ実行
+					//chmod(file, 666);
+					//pw = getpwnam(userName);
+					//if( pw != NULL )
+					//	chown(file, pw->pw_uid, pw->pw_gid);
+						
 					strftime(date, sizeof(date), "%F", ts);
 					fprintf(fp, "%s\n", date);
 					fprintf(fp, "time\tTemp\tPress\tLux\tHumidity\n");

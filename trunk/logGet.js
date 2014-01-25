@@ -6,7 +6,7 @@ var casLog	= "/var/log/cas/"
 var ext		= ".log"
 var saveDir	= " ./"
 var R		= "Rscript.exe "
-var rscript = "logPlot-win.r "
+var rscript = "logPlot.r "
 var imgExt	= " png"
 
 

@@ -2,11 +2,11 @@
 args	<- commandArgs(TRUE)
 date	<- args[1]
 pct		<- args[2]
+current <- args[3]	#指定箇所にあるログから画像の作成を行う
 
 #空の場合はnullでなくnaで判定
 if( is.na(date) )
 	date <- "2014-01-19"
-current <- "/var/log/cas/"	#ログのある場所,同じ場所にpngを出力する z:\\
 file <- sprintf("%s%s.log", current, date)
 dat <- read.table(file, header=TRUE, sep="\t", skip=1)
 pngFile <- sprintf("%s%s.png", current, date)
