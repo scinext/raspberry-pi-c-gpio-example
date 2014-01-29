@@ -8,6 +8,7 @@ var saveDir	= " ./"
 var R		= "Rscript.exe "
 var rscript = "logPlot.r "
 var imgExt	= " png"
+var correct = " correct"
 
 
 var t	= new Date();
@@ -32,8 +33,8 @@ shell.Exec( execCmd );
 
 WScript.sleep(10000);
 
-execCmd = R+shell.CurrentDirectory+'\\'+rscript+yesterDay+imgExt
+execCmd = R+shell.CurrentDirectory+'\\'+rscript+yesterDay+imgExt+saveDir+correct
 shell.Exec( execCmd );
 
-execCmd = R+shell.CurrentDirectory+'\\'+rscript+toDay+imgExt
+execCmd = R+shell.CurrentDirectory+'\\'+rscript+toDay+imgExt+saveDir+correct
 shell.Exec( execCmd );

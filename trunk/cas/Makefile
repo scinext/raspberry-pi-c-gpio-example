@@ -11,10 +11,10 @@ LDFLAGS =-O3 -lrt -lm
 VPATH = ../sensor/ ../gpio/
 
 #オブジェクト(自動でVPATHから検索される)
-MAIN += main.o mode.o threads.o sensor.o
-MAIN += adConvert.o
+MAIN += main.o mode.o threads.o
+SENSOR += adConvert.o sensor.o lps331.o
 GPIO += gpio.o gpio-spi.o gpio-util.o gpio-timer.o gpio-i2c.o gpio-arm-timer.o
-OBJ += $(MAIN) $(GPIO)
+OBJ += $(MAIN) $(SENSOR) $(GPIO)
 
 
 #オブジェクトファイルの出力先
@@ -38,6 +38,8 @@ clean:
 	#rm -rf ./obj/
 	rm $(addprefix $(OBJ_DIR), $(MAIN))
 	
+clean-main:
+	rm $(OBJ_DIR)main.o
 
 
 #

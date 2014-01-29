@@ -13,6 +13,7 @@
 #include "main.h"
 #include "adConvert.h"
 #include "sensor.h"
+#include "lps331.h"
 
 #define MODE_TEMP		0x01
 #define MODE_PRESS		0x02
@@ -90,10 +91,12 @@ int main(int argc, char *argv[])
 	switch( mode )
 	{
 		case MODE_TEMP:
+			WakeUpLps331();
 			ret = GetTemp();
 			g_temp = ret;
 			break;
 		case MODE_PRESS:
+			WakeUpLps331();
 			ret = GetPress();
 			break;
 		case MODE_HUMIDITY:

@@ -187,7 +187,8 @@ void* SensorDataThread(void *param)
 			MySysLog(LOG_DEBUG, "Data Thread exit signal\n");
 			break;
 		}
-
+		//Lps331をone shotモードでたたき起こす
+		WakeUpLps331();
 		g_temp	= GetTemp();
 		g_press	= GetPress();
 		g_lux	= GetLux();

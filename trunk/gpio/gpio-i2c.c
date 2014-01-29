@@ -55,7 +55,7 @@ int InitI2c(RpiRevision rev)
 
 	if( (mem_fd = open("/dev/mem", O_RDWR | O_SYNC)) < 0 )
 	{
-		printf("can't open /dev/mem: %s\n", strerror(errno));
+		fprintf(stderr, "can't open /dev/mem: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -73,7 +73,7 @@ int InitI2c(RpiRevision rev)
 	i2c_map = (char *)mmap(NULL, BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, addr);
 	if( i2c_map == MAP_FAILED )
 	{
-		printf("mmap error %d\n", (int)i2c_map);
+		fprintf(stderr, "mmap error %d\n", (int)i2c_map);
 		return -1;
 	}
 	#ifdef I2C_DEBUG
@@ -239,7 +239,7 @@ int I2cWrite(uint8_t *tbuf, unsigned int len)
 	//転送開始レジスタの設定(READとST)
 	SetRegisterBit(i2c+I2C_C, I2C_C_REGISTER_READ, 1, I2C_WRITE);
 	SetRegisterBit(i2c+I2C_C, I2C_C_REGISTER_ST, 1, 1);
-	//S_TAが0になったら転送が開始されるのでそれまで待機
+	//S_TAが1なら送信中なので0になるまで待機(現状何か送信中でなければ0のはず)
 	while( GetRegisterBit(i2c+I2C_S, I2C_S_REGISTER_TA, 1) == 0 )
 	{
 		result = I2cErrorCheck();
@@ -247,8 +247,8 @@ int I2cWrite(uint8_t *tbuf, unsigned int len)
 			return result;
 	}
 
-	//S_TAが1の場合はまだ転送が必要なので転送
 	i=0;
+	//S_TAが1の場合はまだデータの転送が必要なので転送
 	while( i<len && (GetRegisterBit(i2c+I2C_S, I2C_S_REGISTER_TA, 1)==1) )
 	{
 		//転送用のレジスタにデータの挿入 TXE(FIFOが空なら1)
@@ -269,7 +269,7 @@ int I2cWrite(uint8_t *tbuf, unsigned int len)
 	DelayMicroSecond(1000);
 	
 	//I2cDprintf("%d\n", __LINE__); PrintI2cRegister2();
-	//データが足りない
+	//S_TAがまだ1でここに来る場合は送信データが足りない
 	if( GetRegisterBit(i2c+I2C_S, I2C_S_REGISTER_TA, 1)==1 )
 		fprintf(stderr, "i2c send data short\n");
 
@@ -295,7 +295,7 @@ int I2cRead(uint8_t *rbuf, unsigned int len)
 	SetRegisterBit(i2c+I2C_C, I2C_C_REGISTER_ST, 1, 1);
 	//I2cDprintf("%d\n", __LINE__); PrintI2cRegister2();
 	
-	//S_TAが0になったら転送が開始されるのでそれまで待機
+	//S_TAが1なら送信中なので0になるまで待機(現状何か送信中でなければ0のはず)
 	while( GetRegisterBit(i2c+I2C_S, I2C_S_REGISTER_TA, 1)==0 )
 	{
 		result = I2cErrorCheck();
@@ -303,8 +303,8 @@ int I2cRead(uint8_t *rbuf, unsigned int len)
 			return result;
 	}
 	
-	//S_TAが1の場合はまだ転送が必要なので転送
 	i=0;
+	//S_TAが1の場合はまだデータの転送が必要なので転送
 	while( i<len && (GetRegisterBit(i2c+I2C_S, I2C_S_REGISTER_TA, 1)==1) )
 	{
 		//転送用のレジスタにデータの挿入 RXD(FIFOが空なら0)
