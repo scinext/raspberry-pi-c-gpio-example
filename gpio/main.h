@@ -10,6 +10,10 @@
 	#define Dprintf printf
 #endif
 
+void I2c(unsigned int slaveAddress, unsigned int addr, unsigned int data, unsigned int rw);
+void GpioTest();
+
+
 //spi
 #define START_BIT		1<<2	//S
 #define AD_SINGLE		1<<1	//シングルエンドモードでAD変換

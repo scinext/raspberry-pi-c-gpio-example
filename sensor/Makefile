@@ -5,7 +5,7 @@ CFLAGS =-g -O3
 LDFLAGS =-O3 -lrt -lm 
 
 #コンパイルファイル
-MAIN += main.o adConvert.o sensor.o
+MAIN += main.o adConvert.o sensor.o lps331.o
 GPIO += gpio.o gpio-spi.o gpio-util.o gpio-timer.o gpio-i2c.o gpio-arm-timer.o
 OBJ += $(MAIN) $(GPIO)
 
@@ -33,4 +33,8 @@ $(OBJ_DIR)%.o : %.c
 
 clean:
 	rm $(addprefix $(OBJ_DIR), $(MAIN))
+
+clean-main:
+	rm $(OBJ_DIR)main.o
+	
 	

@@ -11,7 +11,7 @@
 #define DIGIT_3    1<<9
 #define DIGIT_4    1<<8
 
-#define DIGIT_SWITCH    6000
+#define DIGIT_SWITCH    5000
 //#define DIGIT_SWITCH    600000
 
 

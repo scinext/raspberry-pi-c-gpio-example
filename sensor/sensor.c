@@ -16,6 +16,13 @@
 #include <pwd.h>
 
 
+//sensorのみの場合とcasで分けるためにわざとここに記述
+#include "../gpio/gpio.h"
+#include "../gpio/gpio-util.h"
+#include "../gpio/gpio-i2c.h"
+#include "../gpio/gpio-arm-timer.h"
+#include "adConvert.h"
+#include "lps331.h"
 #include "sensor.h"
 
 
@@ -95,27 +102,38 @@ void SensorLogPrintf(int level, const char *str, ...)
 		va_end(args);
 	}
 }
-void Drain(int pin)
+void Drain(int pin, int ch)
 {
 	////ドレインピンを使用して放電
 	int i, ad1;
-
-	InitPin(pin, PIN_IN);
+	
+	//InitPin(pin, PIN_OUT);
+	GPIO_CLR(pin);
+	InitPin(pin, PIN_IN);	
 	PullUpDown(pin, PULL_DOWN);
-
+	//GPIO_SET(pin);
+	//PrintGpioPinMode(gpio);
+	//PrintGpioLevStatus(gpio);
+	
 	//ドレインピンを使用して放電 最大20ms*50 = 1s
 	for(i=0; i<50; i++)
 	{
-		ad1 = GetAD(1);
+		ad1 = GetAD(ch);
 		//20ms
 		usleep(20000);
-		//printf("d i-%d\t%d\t%f\n", i, ad1, mV1);
+		//printf("\td i-%03d %04d", i, ad1);
+		//if( (i+1) % 7 == 0 )
+		//	printf("\n");
+			
 		if( ad1 == 0 )
 			break;
 	}
+	//printf("\n");
 	//ハイインピーダンスへ
-	PullUpDown(pin, PULL_NONE);
 	//InitPin(pin, PIN_IN);
+	PullUpDown(pin, PULL_NONE);
+	//PrintGpioPinMode(gpio);
+	//PrintGpioLevStatus(gpio);
 	return;
 }
 
@@ -159,12 +177,12 @@ void GetLuxTest(int loop, unsigned int sleepTime, unsigned int lsb, int type)
 
 
 	incSleep = sleepTime;
-	Drain(drainPin);
+	Drain(drainPin, ch);
 	if( type )
 	{
 		for(i=0; i<loop; i++)
 		{
-			Drain(drainPin);
+			Drain(drainPin, ch);
 			ad = GetADNoPadPin(pin, ch, incSleep);
 			mV = AtoDmV(ad, lsb);
 			SensorLogPrintf(SENSOR_LOG_LEVEL_1, "%d\t%d\t%f\n", incSleep, ad>>lsb, mV);
@@ -218,14 +236,14 @@ unsigned int GetAllDrainVoltage(int pin, int ch, int drainPin, LuxRangeData *ran
 	oldAd		= 0;
 
 	//一回目は差分を取らないので外で計測
-	Drain(drainPin);
+	Drain(drainPin, ch);
 	ad		= GetADNoPadPin(pin, ch, range->sleepTime );
 	oldAd	= ad;
 	mv = AtoDmV(ad, range->lsb );
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t%8d\t%d\t%f\n", range->sleepTime, ad, mv);
 	for(j=2; j<=quantity; j++)
 	{
-		Drain(drainPin);
+		Drain(drainPin, ch);
 		ad			= GetADNoPadPin(pin, ch, range->sleepTime*j );
 
 		diff		= ad - oldAd;
@@ -336,7 +354,7 @@ float GetLux()
 		//この時点でコンデンサの充電電圧から電流を計測すると
 		//突入電流の影響で計算上かなり上の数値が出るため
 		//倍の時間計測して1us当たりの充電電圧を計算しその上昇値を利用する
-		Drain(drainPin);
+		Drain(drainPin, ch);
 		quantity = 5;
 
 		if( range[i].sleepTime < NO_DRAIN )
@@ -551,34 +569,19 @@ float GetHumidity()
 	//InitPin(pin, PIN_INIT);
 	return Rh;
 }
-int InitLps331()
-{
-	uint8_t send[3]   = {0,};
-	InitI2c(REV_2);
-
-	I2cSetSlaveAddr(I2C_ADDR_LPS331);
-
-	send[0] = LPS331_SINGLE_DATA( LPS331_ACTIVE );
-	send[1] = LPS331_ACTIVE_ON;
-	I2cWrite(send, 2);
-}
-int UnInitLps331()
-{
-	//UnInitI2c();
-}
 float GetPress()
 {
 	int i, adPress;
 	float press;
 	uint8_t send;
-	uint8_t recive[3]	= {0,};
+	uint8_t recive[LPS331_PRESS_REG_COUNT]	= {0,};
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "  press\n");
 
 	//気圧 0x28 0x29 0x2A
 	send = LPS331_MULTI_DATA( LPS331_PRESS );
 	I2cWrite(&send, 1);
-	I2cRead(recive, 3);
+	I2cRead(recive, LPS331_PRESS_REG_COUNT);
 
 	//データの変換
 	adPress = 0;
@@ -599,14 +602,14 @@ float GetTemp()
 	int i, adTemp;
 	float temp;
 	uint8_t send;
-	uint8_t recive[2]	= {0,};
+	uint8_t recive[LPS331_TEMP_REG_COUNT]	= {0,};
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "  temp\n");
 
 	//気温 0x2B 0x2C
 	send = LPS331_MULTI_DATA( LPS331_TEMP );
 	I2cWrite(&send, 1);
-	I2cRead(recive, 2);
+	I2cRead(recive, LPS331_TEMP_REG_COUNT);
 
 	//データの変換
 	adTemp = 0;
@@ -616,18 +619,20 @@ float GetTemp()
 		adTemp |= recive[i] << (i*8);
 	}
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    adTemp 0x%X\n", adTemp);
+	adTemp = (int16_t)adTemp;
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    adTemp 0x%X\n", adTemp);
 
 	//マイナス値を含む場合(最上位ビットが1のとき)
 	//取得したデータの2の歩数を取得してその絶対値をマイナスにする
-	if( (adTemp&0x8000) != 0 )
-	{
-		//adTemp = 0xE07C;
-		//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    ~adTemp+1 0x%X\n", adTemp);
-		//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    -adTemp 0x%X\n", adTemp);
-		adTemp = ((uint16_t)(~adTemp) + 1) * -1;
-		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    (-1 * (~adTemp)+1)) 0x%X\n", adTemp);
-	}
-
+	//if( (adTemp&0x8000) != 0 )
+	//{
+	//	//adTemp = 0xE07C;
+	//	//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    ~adTemp+1 0x%X\n", adTemp);
+	//	//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    -adTemp 0x%X\n", adTemp);
+	//	//adTemp = ((uint16_t)(~adTemp) + 1) * -1;
+	//	adTemp = (int16_t)adTemp;
+	//	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    (-1 * (~adTemp)+1)) 0x%X\n", adTemp);
+	//}
 	temp = ((float)adTemp/LPS331_TEMP_RES) + LPS331_TEMP_OFFSET;
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    temp     :  %.1f\n", temp);
 

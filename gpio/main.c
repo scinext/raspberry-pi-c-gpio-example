@@ -1,5 +1,7 @@
 
 #include <stdio.h>
+//getopt
+#include <unistd.h>
 
 #include "gpio.h"
 #include "gpio-util.h"
@@ -18,26 +20,111 @@ struct timespec startTs, endTs;
 #define SLEEP_LOOP	10
 #define SLEEP_LIMIT	50000
 
+#define M_TEST	0
+#define M_I2C	1
+
+#define M_WRITE 0
+#define M_READ	1
 int main(int argc, char** argv)
-{
+{	
+	int mode = M_TEST;
+	unsigned int data	= 0;
+	unsigned int addr	= 0;
+	unsigned int rw		= 0;
+	unsigned int slaveAddress = 0;
+	//コマンドラインを解析
+	int opt;
+	extern char *optarg;	
+	/*
+	 *  -i i2c -s SlaveAddres -a address -r read -w write
+	 *  -t other test
+	 */
+	while( (opt = getopt(argc, argv, "iv:s:a:rw:t")) != -1 )
+	{
+		switch( opt )
+		{
+			case 'i':
+				mode = M_I2C;
+				break;
+			case 's':
+				slaveAddress = strtol(optarg, NULL, 16);
+				break;
+			case 'a':
+				addr = strtol(optarg, NULL, 16);
+				break;
+			case 'r':
+				data	= 0;
+				rw		= M_READ;
+				break;
+			case 'w':
+				data	= strtol(optarg, NULL, 16);
+				rw		= M_WRITE;
+				break;
+			case 't':
+				mode = M_TEST;
+				break;
+		}
+	}
+	
 	InitGpio();	
 	SetPriority(HIGH_PRIO);
 	
+	switch(mode)
+	{
+		case M_I2C:		I2c(slaveAddress, addr, data, rw);	break;
+		case M_TEST:	GpioTest();							break;
+	}
+	return 0;
+}
+void I2c(unsigned int slaveAddress, unsigned int addr, unsigned int data, unsigned int rw)
+{
+	uint8_t send[2];
+	
+	InitI2c(REV_2);
+	//slaveaddresが0の時はアドレスを検索する
+	if( slaveAddress == 0 )
+	{
+		I2cSearch();
+		return;
+	}
+	printf("slave address 0x%X, addr 0x%X, data 0x%X, read/write %s\n",
+		slaveAddress, addr, data, rw==M_WRITE?"write":"read" );
+	
+	I2cSetSlaveAddr(slaveAddress);
+	
+	send[0] = (uint8_t)addr;
+	if( rw == M_WRITE )
+	{
+		send[1] = (uint8_t)data;
+		I2cWrite(send, 2);
+	}
+	else
+	{
+		int i;
+		uint8_t recive;
+		I2cWrite(send, 1);
+		I2cRead(&recive, 1);
+		printf("0x%X\n", recive);
+	}
+}
+void GpioTest()
+{
+			
 	//SpiTest();
 	//I2cTest();
 	
-	int i;
-	printf("arm\n");
-	//for(i=0; i<20; i++)
-	{
-	ArmTimerTest();
-	}
-	
-	printf("sys\n");
-	//for(i=0; i<20; i++)
-	{
-	SysTimerTest();
-	}
+	//int i;
+	//printf("arm\n");
+	////for(i=0; i<20; i++)
+	//{
+	//ArmTimerTest();
+	//}
+	//
+	//printf("sys\n");
+	////for(i=0; i<20; i++)
+	//{
+	//SysTimerTest();
+	//}
 	
 	//InitSysTimer();
 	//SysTimerPrecisionTest();
@@ -46,8 +133,7 @@ int main(int argc, char** argv)
 	//InitArmTimer(0);
 	//ArmTimerPrecisionTest();
 	//UnInitArmTimer();
-	
-	return 0;
+	return;
 }
 void ArmTimerTest()
 {
