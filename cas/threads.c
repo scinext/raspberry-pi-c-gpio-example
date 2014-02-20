@@ -21,6 +21,7 @@
 #include "../gpio/gpio.h"
 #include "../gpio/gpio-util.h"
 
+#include "../sensor/lps331.h"
 #include "../sensor/sensor.h"
 
 #include "main.h"
@@ -170,7 +171,8 @@ void* SensorDataThread(void *param)
 	sigset_t	ss;
 	siginfo_t	sig;
 	struct timespec timeOut;
-	int			sigNo;
+	int sigNo;
+	int oldOutputMode = MODE_CLOCK;
 
 	//シグナルのタイムアウト
 	timeOut.tv_sec = g_dataInterval;
@@ -187,6 +189,13 @@ void* SensorDataThread(void *param)
 			MySysLog(LOG_DEBUG, "Data Thread exit signal\n");
 			break;
 		}
+		////センサー間隔が1分以上はセンサー実行時アニメーションモードにする
+		//if( g_dataInterval >= 60 )
+		//{
+		//	oldOutputMode	= g_outputMode;
+		//	g_outputMode	= MODE_ANI_0;
+		//}
+		
 		//Lps331をone shotモードでたたき起こす
 		WakeUpLps331();
 		g_temp	= GetTemp();
@@ -195,6 +204,10 @@ void* SensorDataThread(void *param)
 		//g_lux   = GetLuxOhm(100e+3); //100kohm
 		g_hum	= GetHumidity();
 
+		////モードを元に戻す
+		//if( g_dataInterval >= 60 )
+		//	g_outputMode = oldOutputMode;
+		
 		sigNo = sigtimedwait( &ss, &sig, &timeOut);
 		//何らかの形でシグナルが来なかった時の保険
 		if( g_threadStatus == 0 )

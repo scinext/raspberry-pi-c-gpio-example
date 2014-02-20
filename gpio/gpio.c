@@ -219,3 +219,53 @@ unsigned int GetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, u
 	printf("\n");
 	return tmp;
 }
+
+
+char *pads_map = NULL;
+volatile unsigned int *pads = NULL;
+#define PADS_BASE	(BCM2708_PERI_BASE+0x00100000)	//0x 7e10 0000
+#define PADS_1		0x002C/sizeof(uint32_t)
+#define PADS_2		0x0030/sizeof(uint32_t)
+#define PADS_3		0x0034/sizeof(uint32_t)
+int InitPads()
+{
+	int mem_fd;
+
+	if( pads != NULL )
+		return 1;
+
+	if( gpio == NULL )
+	{
+		perror("gpio NULL");
+		return -1;
+	}
+
+	if( (mem_fd = open("/dev/mem", O_RDWR | O_SYNC)) < 0 )
+	{
+		printf("can't open /dev/mem: %s\n", strerror(errno));
+		return -1;
+	}
+
+	pads_map = (char *)mmap(NULL, BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, PADS_BASE);
+	if( pads_map == MAP_FAILED )
+	{
+		printf("mmap error %s %d\n", strerror(errno), (int)pads_map);
+		return -1;
+	}
+
+	close(mem_fd);
+
+	pads = (volatile unsigned int *)pads_map;
+
+	
+	printf("gpio base 0x%X\n", (int32_t)gpio);
+	printf("mmap PADS_BASE %s 0x%X\n", strerror(errno), (int32_t)pads);
+
+	PrintRegStatus(stdout, pads, PADS_1,  "0x7e10002c    ",	1);
+	PrintRegStatus(stdout, pads, PADS_2,  "0x7e10002c    ",	0);
+	PrintRegStatus(stdout, pads, PADS_3,  "0x7e10002c    ",	0);
+
+	return 1;
+
+	
+}

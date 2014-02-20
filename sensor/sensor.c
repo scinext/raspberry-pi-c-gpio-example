@@ -10,7 +10,7 @@
 #include <math.h>
 //syslog
 #include <syslog.h>
-//stat
+//stat chmod
 #include <sys/stat.h>
 //passwd
 #include <pwd.h>
@@ -61,18 +61,23 @@ void SensorLogPrintf(int level, const char *str, ...)
 			char file[100];
 			struct stat status;
 			int exist;
-			int headerFlag;
+			mode_t proccessMask;
 
 			t	= time(NULL);
 			ts	= localtime(&t);
 			strftime(file, sizeof(file), LOG_DIR "%F.log", ts);
-
-			//ファイルの存在確認ない場合はデータの見出しを挿入するのでフラグを立てる
-			headerFlag	= 0;
-			exist		= stat(file, &status);
 			
-			//後でここにグラフを作成するためall-OKに
-			mkdir(LOG_DIR, 0777);
+			//logディレクトリの確認 後でここにグラフを作成するためマスクを外してall-OKに
+			exist = stat(LOG_DIR, &status);
+			if( exist == -1 )
+			{
+				proccessMask = umask(0);
+				mkdir(LOG_DIR, 0777);
+				umask(proccessMask);
+			}
+			
+			//ファイルの存在確認ない場合はデータの見出しを挿入するのでフラグを立てる
+			exist = stat(file, &status);
 			fp = fopen(file, "a");
 			if( fp != NULL )
 			{
@@ -82,7 +87,9 @@ void SensorLogPrintf(int level, const char *str, ...)
 					//const char userName[] = "pi"; //ファイルの所有者をpiにする(ハードコード)
 					//struct passwd *pw = NULL;
 					//作成時のみ実行
-					//chmod(file, 666);
+					proccessMask = umask(0);
+					chmod(file, 0766);
+					umask(proccessMask);
 					//pw = getpwnam(userName);
 					//if( pw != NULL )
 					//	chown(file, pw->pw_uid, pw->pw_gid);
@@ -367,6 +374,8 @@ float GetLux()
 
 		break;
 	}
+	//放電
+	Drain(drainPin, ch);
 
 	//電圧の差分の平均値を求める
 	avgAd = (float)diffAd/(quantity-1);
@@ -428,25 +437,35 @@ float GetLuxOhm(int ohm)
 	const unsigned int ch  = 1;
 	float ad, a, lux;
 	int adc, sleepTime;
+	int lsb;
+	
+	//100ms
+	//時間を短くするとなぜかADコンバータがうまく動かず
+	//短くすればするほど高い電圧値が測定される
+	//100ms以上は値が一定になる
+	sleepTime = 200000;
+	//lsb
+	lsb = 0;//AD_LSB;
 
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "  Lux use ohm %d\n", ohm);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "Lux use ohm %d\n", ohm);
 	//時間経過
 	GPIO_SET(pin);
-	//100ms
-	sleepTime = 100000;
 
 	DelayMicroSecond(sleepTime);
 	adc = GetAD(ch);
-	ad = AtoDmV(adc, AD_LSB);
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tohm\tadc\t%8d\tad\t%f\n", adc, ad);
-
+	ad = AtoDmV(adc, lsb);
+	
 	GPIO_CLR(pin);
+	//100ms
+	DelayMicroSecond(sleepTime/100);
+
 
 	//
 	//E=IR	I=E/R	R=E/I
 	a = (ad*1e-3)/ohm;
 
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tI(A)\t%f\tI(uA)\t%f\n", a, a*1e+6);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "adc\tad\tI(A)\tI(uA)\n");
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "%d\t%f\t%f\t%f\n", adc, ad, a, a*1e+6);
 	a *= 1e+6;
 	
 	//温度補正
@@ -462,7 +481,7 @@ float GetLuxOhm(int ohm)
 
 	//100Luxで46uA(5v), 1uAで2.17Lux
 	lux = a * 2.17;
-	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\tLux\t%f\n", lux);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "Lux\t%f\n", lux);
 
 	return lux;
 }
@@ -506,7 +525,7 @@ float GetHumidity()
 		SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    ch sleepTime %d    %2d    adc %8d    volt %fmV\n",
 			sleepTime, ch, adc, ad);
 
-		if( adc > 10 )
+		if( adc > 195 )	//0.63v
 			break;
 	}
 
@@ -520,7 +539,12 @@ float GetHumidity()
 	const int 	ohm		= 1e+3;		//150(ohm) //1e+6
 	//pinの出力電圧が低い可能性がある
 	//3.2～3.1あたりにすると高抵抗時の充電の値が合う
-	const float	refV	= 3300.0;	//3.3; //3.2;
+	//とりあえず3160なら1K～1Mまでほぼ理論値になるのでそれで
+	//1K	   10us	1192.382812		refV 3.262	220.766312	理論値 220
+	//10K	  100us	1163.378906		refV 3.186	180.100143	理論値 180
+	//100K	 1000us	1160.156250		refV 3.176	140.100143	理論値 140
+	//1M	10000us	1153.710815		refV 3.158	99.916054	理論値 100
+	const float	refV	= 3160;
 	const float con		= 0.022;	//0.022(uF)
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    Vcc(V) %.1f,  C(uF) %.3f,  T(us)  %d,  Et(mV)  %f \n",
@@ -539,6 +563,8 @@ float GetHumidity()
 
 
 	//抵抗を対数値へ
+	//1K 219, 10K 180, 100K 140, 1M 99
+	//1K 219.808823, 10K  180.180405, 100K 138.982422, 1M 98.982414
 	Rs = 240-40*log10(r/316);
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    Rs = %f\n", Rs);
 

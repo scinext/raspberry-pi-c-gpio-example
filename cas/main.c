@@ -4,7 +4,7 @@
 #include <string.h>
 
 //POSIXメッセージキュー
-//O_CREATE などに必要
+//open O_CREATE などに必要
 #include <fcntl.h>
 //読み書きのモード 0666とかの定義 #include <sys/stat.h>
 #include <mqueue.h>
@@ -20,8 +20,6 @@
 #include <errno.h>
 //syslog
 #include <syslog.h>
-//stat
-#include <sys/stat.h>
 
 #include "../gpio/gpio.h"
 #include "../gpio/gpio-util.h"
@@ -30,8 +28,6 @@
 #include "main.h"
 #include "mode.h"
 #include "threads.h"
-
-#include "../sensor/sensor.h"
 
 
 //スレッド
@@ -209,20 +205,17 @@ void SendQueue(char *sendData)
 int InitServeRecive(int debug, int sensorOutLevel)
 {
 	//メッセージキューでの二重起動防止は失敗したかもしれないので疑似ロックファイルでの確認へ
-	struct stat status;
-	int exist;
-	exist = stat(LOCK_FILE, &status);
-	MySysLog(LOG_DEBUG, LOCK_FILE " exist =%d\n", exist);
+	//statでファイルの存在確認をしてたがopen関数のo_exclとo_createを同時に指定すると
+	//既にファイルがある場合エラーが返るのでそれで存在確認&作成を同時に行うように
+	int fd;
+	fd = open(LOCK_FILE, O_RDWR | O_CREAT | O_EXCL, 0666);
+	close(fd);
+	MySysLog(LOG_DEBUG, LOCK_FILE " exist =%d\n", fd);
 	//-1のときはファイルがないので失敗 == まだ他のプロセスが起動していない
-	if( exist == -1 )
+	if( fd != -1 )
 	{
-		FILE *fp;
 		MySysLog(LOG_DEBUG, "server process\n");
 		MySysLog(LOG_DEBUG, "-----server init\n");
-
-		fp = fopen(LOCK_FILE, "w");
-		//fprintf(fp, "lock");
-		fclose(fp);
 		MySysLog(LOG_DEBUG, "    create lock file " LOCK_FILE " \n");
 
 		//デバッグ起動でなければデーモン化させる
@@ -278,14 +271,14 @@ int UnInitServeRecive(int processStatus)
 
 	if( processStatus == SERVER_PROCESS )
 	{
-		struct stat status;
-		int exist;
+		//statでのファイル確認からopenでのファイル確認へ
+		int fd;
 		ret = mq_unlink(MSG_QUEUE_NAME);
 		MySysLog(LOG_DEBUG, "    msg queue unlink %s\n", ret==0 ? "OK" : "NG");
 
-		exist = stat(LOCK_FILE, &status);
-		MySysLog(LOG_DEBUG, "    " LOCK_FILE " %s\n", exist!=-1 ? "exist" : "no");
-		if( exist != -1 )
+		fd = open(LOCK_FILE, O_RDWR | O_CREAT | O_EXCL, 0666);
+		MySysLog(LOG_DEBUG, "    " LOCK_FILE " %s\n", fd!=-1 ? "exist" : "no");
+		if( fd == -1 )
 		{
 			//ロックファイルの削除
 			ret = remove(LOCK_FILE);

@@ -133,6 +133,7 @@ void GpioTest()
 	//InitArmTimer(0);
 	//ArmTimerPrecisionTest();
 	//UnInitArmTimer();
+	InitPads();
 	return;
 }
 void ArmTimerTest()
