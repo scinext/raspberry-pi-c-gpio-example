@@ -193,4 +193,6 @@ unsigned int SetRegisterBit(volatile unsigned int *reg, unsigned int bit, unsign
 unsigned int SetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, unsigned int useBit, unsigned int value);
 unsigned int GetRegisterBit(volatile unsigned int *reg, unsigned int bit, unsigned int useBit);
 unsigned int GetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, unsigned int useBit);
+
+int InitPads();
 #endif     

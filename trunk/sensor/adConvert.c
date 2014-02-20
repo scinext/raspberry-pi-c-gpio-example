@@ -172,6 +172,7 @@ unsigned int GetADNoPadPin(int pin, int ch, unsigned int sleepTime)
 {
 	int i;
 	unsigned int b;
+	int useTime;
 	
 	
 	//データシートだと受信したデータを操作しやすい位置に来させるため
@@ -240,8 +241,11 @@ unsigned int GetADNoPadPin(int pin, int ch, unsigned int sleepTime)
 	//1M	-> 73 R==1000000	-> T=943.785583 Rs=98.982414
 
 	sleepTime *= 10;
-	//待機時間の処理 計測にかかる73を差っ引く
-	const int measureUseTime = AD_NO_PADDING_GAP;
+	//待機時間の処理
+	//spiでsleep直前からデータ送信までに約14(0.1us)使う
+	//データが5byte+1byte(データ変換時間)で約6us(1MHz)->60
+	//計74余分にかかるのでその分を引く
+	const int measureUseTime = 74; //AD_NO_PADDING_GAP;
 	if( sleepTime > measureUseTime )
 		sleepTime -= measureUseTime;
 	else
@@ -265,6 +269,7 @@ unsigned int GetADNoPadPin(int pin, int ch, unsigned int sleepTime)
 	//PrintUintDelimiter(stdout, b, 4);
 	
 	SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
+	//printf("use time %d\n", useTime);
 	
 	b = rbuf[0]<<16 | rbuf[1]<<8 | rbuf[2];
 	////受信テスト表示	
@@ -411,17 +416,23 @@ unsigned int GetADmcp3204(int pin, int ch, unsigned long sleepTime)
 	
 	//PrintGpioLevStatus(gpio);
 	
-	//待機時間の処理  計測にかかる68を差っ引く
+	//待機時間の処理
+	//データ送信時間 5byte 約5us(1MHz) -> 実測55(0.1us)
+	//DelayArmTimerCounter, GPIO_CLR, GPIO_SETにかかる時間 約8(0.1)
+	//データ変換時間 1us -> 10(0.1us)
+	//計 7.3usが余分に掛かる時間 余分に+2しておく
 	sleepTime *= 10;
-	if( sleepTime > 68 )
-		sleepTime -= 68;
+	const int measureUseTime = 75;
+	if( sleepTime > measureUseTime )
+		sleepTime -= measureUseTime;
 	else
 		sleepTime = 0;
 		
-	start = GetArmTimer();
+	//start = GetArmTimer();
 	//指定されたpinを出力
 	GPIO_SET(pin);
 	DelayArmTimerCounter(sleepTime);
+	//usleep(sleepTime);
 	
 	//通信の開始(通信先のcsを下げる)
 	GPIO_CLR(SPI_CE0);
@@ -456,6 +467,7 @@ unsigned int GetADmcp3204(int pin, int ch, unsigned long sleepTime)
 		//クロックを下げる
 		GPIO_CLR(SPI_SCLK);
 	}
+	//diff = GetArmTimer() - start;
 	
 	//ここで受信できないが1クロック分余分に回して
 	//サンプリング用のクロックを消費
@@ -487,7 +499,6 @@ unsigned int GetADmcp3204(int pin, int ch, unsigned long sleepTime)
 	
 	//指定されたpinを初期化
 	GPIO_CLR(pin);
-	diff = GetArmTimer() - start;
 	
 	//通信の終了(通信先のcsをあげる)
 	GPIO_SET(SPI_CE0);

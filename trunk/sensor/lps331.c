@@ -2,6 +2,8 @@
 #include <stdio.h>
 //uint8_t,16_t
 #include <stdint.h>
+//syslog
+#include <syslog.h>
 
 #include "../gpio/gpio.h"
 #include "../gpio/gpio-util.h"
@@ -102,8 +104,10 @@ int WakeUpLps331()
 	uint8_t send[3];
 	uint8_t recive;
 	int i;
+	int endFlag =  1<<LPS331_P_DA | 1<<LPS331_T_DA;
 	
 	ClearLps331();
+	printf("endFlag 0x%X\n", endFlag);
 	
 	//送信データ(power onとone shotフラグ)のレジスタが
 	//連続している( LPS331_CTRL1(0x20),CTEL2(0x21) )ので連続で送る
@@ -112,29 +116,40 @@ int WakeUpLps331()
 	send[2] = 1<<LPS331_ONE_SHOT;
 	I2cWrite(send, 3);
 	
-	//send[0] = LPS331_SINGLE_DATA( LPS331_CTRL1 );
-	//send[1] = LPS331_POWER_ON<<LPS331_POWER;
-	//I2cWrite(send, 2);
-	//
-	//send[0] = LPS331_SINGLE_DATA( LPS331_CTRL2 );
-	//send[1] = 1<<LPS331_ONE_SHOT;
-	//I2cWrite(send, 2);
-	
 	//printf("now sample\n");
 	//DispLps331Register();
 	//DispLps331Data();
 	//one_shotフラグを立て、変換が完了すると下がるので下がったら次の処理へ
 	//若しくはone_shotフラグでなくstatusレジストリを見る
+	//one_shotのフラグだとうまく動かなかったのでstatusレジスタに変更
 	//現状RES_CONFが0x7Aの時30msでフラグが立ってて40で立ってなかったので40で
 	i=0;
 	do{
 		usleep(40000);
-		send[0] = LPS331_SINGLE_DATA( LPS331_CTRL2 );
+		//send[0] = LPS331_SINGLE_DATA( LPS331_CTRL2 );
+		send[0] = LPS331_SINGLE_DATA( LPS331_STATUS );
 		I2cWrite(send, 1);
 		I2cRead(&recive, 1);
 		++i;
-	}while( (recive&0x01) == 1 );
-	//printf("addr 0x%02X : check count %d\n", LPS331_CTRL2, i);
+		//基本的に一度で通過するはずだが
+		//たまにデバイスがまともに動かない?のかフラグが立たない or 消えないので
+		//30以上(40m*30=1.2s)チェックして動かないようなら戻る
+		if( i>30 )
+		{
+			syslog(LOG_WARNING, "lps331 one shot flag error\n");
+			syslog(LOG_WARNING, "    LPS331_STATUS addr 0x%02X : 0x%X  check count %d  endflag 0x%X\n",
+				LPS331_STATUS, recive, i, endFlag);
+				
+			send[0] = LPS331_SINGLE_DATA( LPS331_CTRL2 );
+			I2cWrite(send, 1);
+			I2cRead(&recive, 1);
+			syslog(LOG_WARNING, "    LPS331_CTRL2 addr 0x%02X : 0x%X\n",	LPS331_CTRL2, recive);
+			
+			return -1;
+		}
+	//LPS331_P_DA(気圧) LPS331_T_DA(気温)の測定完了フラグが立つまで待機;
+	}while( (recive&endFlag) != endFlag );
+	//printf("addr 0x%02X : 0x%X  check count %d\n", LPS331_STATUS, recive, i);
 	//printf("sample ok\n");
 	//DispLps331Data();
 	

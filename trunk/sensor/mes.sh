@@ -2,12 +2,12 @@
 
 a=0
 if [ $1 = "con" ] ; then
-	file=${2}-con-ret.txt
+	file=${2}-con.txt
 	sensor="sudo ./sensor -Dl >> ${file}"
 else
 	#ohm=`expr ${1} \* 1000`
 	ohm=${1}
-	file=${2}-${1}-registor-ret.txt
+	file=${2}-${1}.txt
 	sensor="sudo ./sensor -D -L ${ohm} >> ${file}"
 fi
 echo "exec " $sensor

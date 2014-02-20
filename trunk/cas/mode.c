@@ -8,7 +8,8 @@
 #include "main.h"
 #include "mode.h"
 
-#include "../sensor/sensor.h"
+//ARRAY_SIZE
+#include "../gpio/gpio-util.h"
 
 
 #define MODE_START		1
@@ -532,7 +533,7 @@ void AnimationMode(int mode)
 			case MODE_ANI_2:
 			case MODE_ANI_0:
 			default:
-				g_aniSpeed = 100000;
+				g_aniSpeed = 170000;
 				break;
 		}
 	}

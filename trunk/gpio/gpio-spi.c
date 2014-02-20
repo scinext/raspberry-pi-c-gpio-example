@@ -358,6 +358,7 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 	//抵抗値と充電電圧から計算したADコンバータの計測開始までがおよそ5usだったので
 	//計測終了後から余分に9usから10usかかると思われる
 	
+	diffCounter = 0;
 	startCounter = GetArmTimer();
 	//pinをHighへ
 	GPIO_SET(pin);
@@ -371,7 +372,7 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 		//TXDフラグが1になるまで(0の間は待機)
 		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TXD, 1)==0 )
 			;
-
+		
 		//FIFOに書き込む
 		SpiDprintf("\t\twrite SPI_FIFO 0x%x td %d\n", (spi+SPI_FIFO), td[i]);
 		*(spi+SPI_FIFO) = td[i];
@@ -416,7 +417,8 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 	
 	//pinをLowへ
 	GPIO_CLR(pin);
-	diffCounter = GetArmTimer() - startCounter;
+	diffCounter = GetArmTimer();
+	diffCounter = diffCounter - startCounter;
 	SpiDprintf("arm counter %u\n", diffCounter);
 	
 	SpiDprintf("\tsend complete\n");
