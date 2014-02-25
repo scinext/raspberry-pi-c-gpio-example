@@ -1,29 +1,42 @@
 ﻿CC=gcc
-CFLAG =-g 
+CFLAGS =-g -O3
+LDFLAGS =-O3 -lrt -lm 
 
-#-lrt(getclock_)
-LDFLAG =-O3 -lrt
+#コンパイルファイル
+MAIN += main.o
+GPIO += gpio.o gpio-spi.o gpio-util.o gpio-timer.o gpio-i2c.o gpio-arm-timer.o
+COM_OBJ += $(GPIO)
 
-OBJ_DIR = obj/
+CUR_DIR = $(shell basename $(CURDIR))
+CURRENT_OBJ_DIR = ./$(CUR_DIR)-obj/
+COM_OBJ_DIR = ../obj/
 
-SRC = main.o gpio.o gpio-spi.o gpio-util.o gpio-timer.o gpio-i2c.o gpio-arm-timer.o
-OBJ = $(addprefix $(OBJ_DIR), $(SRC:.c=.o) )
+#出力先ごとのオブジェクトファイルのパス
+MAIN_O_P = $(addprefix $(CURRENT_OBJ_DIR), $(MAIN))
+COM_O_P = $(addprefix $(COM_OBJ_DIR), $(COM_OBJ))
 
 TARGET=gpio-test
 
-all: $(TARGET)
+#先に出力先のディレクトリの作成を行う
+all: $(COM_OBJ_DIR) $(CURRENT_OBJ_DIR) $(TARGET)
 
-$(TARGET): $(OBJ)
-	$(CC) $(LDFLAG) $(OBJ) -o $@
-	#sudo ./$(TARGET) -D
+$(CURRENT_OBJ_DIR):
+	mkdir -p $@
+
+$(COM_OBJ_DIR):
+	mkdir -p $@
+
 	
-
-$(OBJ_DIR)%.o : %.c
-	mkdir -p $(dir $@)
+$(TARGET): $(COM_O_P) $(MAIN_O_P)
+	$(CC) $(LDFLAGS) $(COM_O_P) $(MAIN_O_P) -o $@
+	
+$(CURRENT_OBJ_DIR)%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+	
+$(COM_OBJ_DIR)%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR):
-	mkdir -p $(OJB_DIR)
-	
 clean:
-	rm ./obj/*.o
+	rm $(addprefix $(COM_OBJ_DIR), $(SRC))
+	rm $(MAIN)
+	

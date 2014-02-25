@@ -133,7 +133,17 @@ void GpioTest()
 	//InitArmTimer(0);
 	//ArmTimerPrecisionTest();
 	//UnInitArmTimer();
-	InitPads();
+	
+	//InitPads();
+	
+	//PrintGpioStatus(gpio);
+	int drainPin = 23;
+	InitPin(drainPin, PIN_OUT);
+	GPIO_CLR(drainPin);
+	//PullUpDown(drainPin, PULL_NONE);
+	
+	PrintGpioPinMode(gpio);
+	PrintGpioLevStatus(gpio);
 	return;
 }
 void ArmTimerTest()
