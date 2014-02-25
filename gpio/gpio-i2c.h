@@ -76,7 +76,7 @@ typedef enum _I2cError{
 
 //DIV Register	Reserved 16～31
 #define I2C_DIV_REGISTER_CDIV		0		//Clock Divider SCL=core clock(150MHz)/CDIV
-	#define I2C_DIV_CDIV_USE_BIT		16		//16bit 0-15	
+	#define I2C_DIV_CDIV_USE_BIT		16		//16bit 0-15	def 1500=100KHz
 
 //DEL Register(よくわからん)
 #define I2C_DEL_REGISTER_FEDL		16		//Falling Edge Delay

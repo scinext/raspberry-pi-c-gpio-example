@@ -21,13 +21,27 @@ int InitLps331()
 	//I2cWrite(send, 2);
 	
 	uint8_t send[2];
+	//省電力モードへ
 	send[0] = LPS331_SINGLE_DATA( LPS331_CTRL1 );
-	send[1] = LPS331_POWER_ON<<LPS331_POWER;
+	send[1] = LPS331_POWER_OFF<<LPS331_POWER;
 	I2cWrite(send, 2);
+	//分解能の設定
+	send[0] = LPS331_SINGLE_DATA( LPS331_RES_CONF );
+	send[1] = 0x07<<LPS331_AVGT | 0x0A<<LPS331_AVGP;
+	I2cWrite(send, 2);
+	//DispData(send, 2, "LPS331_RES_CONF");
 }
 int UnInitLps331()
 {
 	//UnInitI2c();
+}
+void DispData(uint8_t *data, int dataLen, char *name)
+{
+	int i;
+	fprintf(stderr, "%s ", name);
+	for(i=0; i<dataLen; i++)
+		fprintf(stderr, "0x%X ", data[i]);
+	fprintf(stderr, "\n");
 }
 void DispLps331Register()
 {
@@ -107,14 +121,23 @@ int WakeUpLps331()
 	int endFlag =  1<<LPS331_P_DA | 1<<LPS331_T_DA;
 	
 	ClearLps331();
-	printf("endFlag 0x%X\n", endFlag);
+	//printf("endFlag 0x%X\n", endFlag);
 	
 	//送信データ(power onとone shotフラグ)のレジスタが
 	//連続している( LPS331_CTRL1(0x20),CTEL2(0x21) )ので連続で送る
-	send[0] = LPS331_MULTI_DATA( LPS331_CTRL1 );
-	send[1] = LPS331_POWER_ON<<LPS331_POWER;
-	send[2] = 1<<LPS331_ONE_SHOT;
-	I2cWrite(send, 3);
+	//send[0] = LPS331_MULTI_DATA( LPS331_CTRL1 );
+	//send[1] = LPS331_POWER_ON<<LPS331_POWER;
+	//send[2] = 1<<LPS331_ONE_SHOT;
+	//I2cWrite(send, 3);
+	send[0] = LPS331_SINGLE_DATA( LPS331_CTRL1 );
+	send[1] = LPS331_POWER_ON<<LPS331_POWER | 1<<LPS331_BDU;
+	I2cWrite(send, 2);
+	//DispData(send, 2, "LPS331_CTRL1");
+	
+	send[0] = LPS331_SINGLE_DATA( LPS331_CTRL2 );
+	send[1] = 1<<LPS331_ONE_SHOT;
+	I2cWrite(send, 2);
+	//DispData(send, 2, "LPS331_CTRL2");
 	
 	//printf("now sample\n");
 	//DispLps331Register();

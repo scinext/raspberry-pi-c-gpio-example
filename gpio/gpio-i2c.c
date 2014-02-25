@@ -154,6 +154,7 @@ unsigned int I2cSetClock(unsigned int speed)
 	unsigned int clockDivider = coreClock / speed;
 
 	//0の場合は32768になるらしい
+	//設定しない場合は100KHz=1500
 
 	//多いときは-1を返す
 	if( clockDivider < 1<<I2C_DIV_CDIV_USE_BIT )

@@ -109,41 +109,56 @@ void I2c(unsigned int slaveAddress, unsigned int addr, unsigned int data, unsign
 }
 void GpioTest()
 {
-			
-	//SpiTest();
-	//I2cTest();
+		
+	/* spi	
+		SpiTest();
+	//*/
 	
-	//int i;
-	//printf("arm\n");
-	////for(i=0; i<20; i++)
-	//{
-	//ArmTimerTest();
-	//}
-	//
-	//printf("sys\n");
-	////for(i=0; i<20; i++)
-	//{
-	//SysTimerTest();
-	//}
+	//*i2c
+		I2cTest();
+	//*/
 	
-	//InitSysTimer();
-	//SysTimerPrecisionTest();
-	//UnInitSysTimer();
-	//
-	//InitArmTimer(0);
-	//ArmTimerPrecisionTest();
-	//UnInitArmTimer();
+	/*timer
+		int i;
+		printf("arm\n");
+		//for(i=0; i<20; i++)
+		{
+		ArmTimerTest();
+		}
+		
+		printf("sys\n");
+		//for(i=0; i<20; i++)
+		{
+		SysTimerTest();
+		}
+	//*/
 	
-	//InitPads();
+	/* systimer
+		InitSysTimer();
+		SysTimerPrecisionTest();
+		UnInitSysTimer();
+	//*/
+	/* armtimer
+		InitArmTimer(0);
+		ArmTimerPrecisionTest();
+		UnInitArmTimer();
+	//*/
+	
+	/* pads
+		InitPads();
+	//*/
 	
 	//PrintGpioStatus(gpio);
-	int drainPin = 23;
-	InitPin(drainPin, PIN_OUT);
-	GPIO_CLR(drainPin);
-	//PullUpDown(drainPin, PULL_NONE);
 	
-	PrintGpioPinMode(gpio);
-	PrintGpioLevStatus(gpio);
+	/* drain
+		int drainPin = 23;
+		InitPin(drainPin, PIN_OUT);
+		GPIO_CLR(drainPin);
+		//PullUpDown(drainPin, PULL_NONE);
+		
+		PrintGpioPinMode(gpio);
+		PrintGpioLevStatus(gpio);
+	//*/
 	return;
 }
 void ArmTimerTest()
@@ -193,60 +208,60 @@ void I2cTest()
 	InitI2c(REV_2);
 	//PrintGpioPinMode(gpio);
 	
-	//PrintI2cRegister();
-	I2cSearch();
+	PrintI2cRegister();
+	//I2cSearch();
 	
-	I2cSetSlaveAddr(I2C_ADDR_LPS331);
+	//I2cSetSlaveAddr(I2C_ADDR_LPS331);
+	//send[0] = LPS331_MULTI_DATA( LPS331_ACTIVE );
+	//I2cTransfer(send, 1, recive, 3);
+	//for(i=0; i<3; i++)
+	//	I2cDprintf("recive[%d]  %d\n", i, recive[i]);
+	//DelayMicroSecond(1000);
 	
-	send[0] = LPS331_MULTI_DATA( LPS331_ACTIVE );
-	I2cTransfer(send, 1, recive, 3);
-	for(i=0; i<3; i++)
-		I2cDprintf("recive[%d]  %d\n", i, recive[i]);
-	DelayMicroSecond(1000);
-	/*
-	I2cSetSlaveAddr(I2C_ADDR_LPS331);
-	I2cDprintf("%d\n", __LINE__);
-	send[0] = LPS331_SINGLE_DATA( LPS331_ACTIVE );
-	send[1] = LPS331_ACTIVE_OFF;
-	I2cWrite(send, 2);
-	DelayMicroSecond(1000);
-	
-	I2cDprintf("%d\n", __LINE__);
-	send[0] = LPS331_MULTI_DATA( LPS331_ACTIVE );
-	I2cWrite(send, 1);
-	I2cRead(recive, 3);
-	for(i=0; i<3; i++)
-		I2cDprintf("recive[%d]  %d\n", i, recive[i]);
-	DelayMicroSecond(1000);
-	
-	I2cDprintf("%d\n", __LINE__);
-	send[0] = LPS331_SINGLE_DATA( LPS331_ACTIVE );
-	send[1] = LPS331_ACTIVE_ON;
-	I2cWrite(send, 2);
-	DelayMicroSecond(1000);
-	
-	I2cDprintf("%d\n", __LINE__);
-	send[0] = LPS331_MULTI_DATA( LPS331_ACTIVE );
-	I2cWrite(send, 1);
-	I2cRead(recive, 3);
-	for(i=0; i<3; i++)
-		I2cDprintf("recive[%d]  %d\n", i, recive[i]);
-	DelayMicroSecond(1000);
-	
-	I2cDprintf("%d\n", __LINE__);
-	send[0] = LPS331_MULTI_DATA( LPS331_TEMP );
-	I2cWrite(send, 1);
-	I2cRead(recive, 2);
-	for(i=0; i<2; i++)
-		I2cDprintf("recive[%d]  %d\n", i, recive[i]);
-	DelayMicroSecond(1000);
-	
-	send[0] = LPS331_MULTI_DATA( LPS331_PRESS );
-	I2cWrite(send, 1);
-	I2cRead(recive, 3);
-	for(i=0; i<3; i++)
-		I2cDprintf("recive[%d]  %d\n", i, recive[i]);
-	DelayMicroSecond(1000);
+	/* serve recive test
+		I2cSetSlaveAddr(I2C_ADDR_LPS331);
+		I2cDprintf("%d\n", __LINE__);
+		send[0] = LPS331_SINGLE_DATA( LPS331_ACTIVE );
+		send[1] = LPS331_ACTIVE_OFF;
+		I2cWrite(send, 2);
+		DelayMicroSecond(1000);
+		
+		I2cDprintf("%d\n", __LINE__);
+		send[0] = LPS331_MULTI_DATA( LPS331_ACTIVE );
+		I2cWrite(send, 1);
+		I2cRead(recive, 3);
+		for(i=0; i<3; i++)
+			I2cDprintf("recive[%d]  %d\n", i, recive[i]);
+		DelayMicroSecond(1000);
+		
+		I2cDprintf("%d\n", __LINE__);
+		send[0] = LPS331_SINGLE_DATA( LPS331_ACTIVE );
+		send[1] = LPS331_ACTIVE_ON;
+		I2cWrite(send, 2);
+		DelayMicroSecond(1000);
+		
+		I2cDprintf("%d\n", __LINE__);
+		send[0] = LPS331_MULTI_DATA( LPS331_ACTIVE );
+		I2cWrite(send, 1);
+		I2cRead(recive, 3);
+		for(i=0; i<3; i++)
+			I2cDprintf("recive[%d]  %d\n", i, recive[i]);
+		DelayMicroSecond(1000);
+		
+		I2cDprintf("%d\n", __LINE__);
+		send[0] = LPS331_MULTI_DATA( LPS331_TEMP );
+		I2cWrite(send, 1);
+		I2cRead(recive, 2);
+		for(i=0; i<2; i++)
+			I2cDprintf("recive[%d]  %d\n", i, recive[i]);
+		DelayMicroSecond(1000);
+		
+		send[0] = LPS331_MULTI_DATA( LPS331_PRESS );
+		I2cWrite(send, 1);
+		I2cRead(recive, 3);
+		for(i=0; i<3; i++)
+			I2cDprintf("recive[%d]  %d\n", i, recive[i]);
+		DelayMicroSecond(1000);
 	*/
 	//UnInitI2c();
 	//PrintGpioPinMode(gpio);
