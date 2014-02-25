@@ -122,6 +122,7 @@
 
 int InitLps331();
 int UnInitLps331();
+void DispData(uint8_t *data, int dataLen, char *name);
 void DispLps331Register();
 void DispLps331Data();
 int ClearLps331();
