@@ -136,9 +136,15 @@ void Drain(int pin, int ch)
 			break;
 	}
 	//printf("\n");
+	
 	//ハイインピーダンスへ
+	//ハイインピーダンスでもリーク電流が発生するので注意
+	// (0.000947-0.000030)=0.000917[uA]=9.17e-4[uA]ぐらい 
+	
 	//InitPin(pin, PIN_IN);
 	PullUpDown(pin, PULL_NONE);
+	
+	
 	//PrintGpioPinMode(gpio);
 	//PrintGpioLevStatus(gpio);
 	return;
@@ -242,8 +248,7 @@ unsigned int GetAllDrainVoltage(int pin, int ch, int drainPin, LuxRangeData *ran
 	sumDiffAd	= 0;
 	oldAd		= 0;
 
-	//一回目は差分を取らないので外で計測
-	Drain(drainPin, ch);
+	//一回目は差分を取らないので外で計測 外で放電を行ってるのでここは行わない
 	ad		= GetADNoPadPin(pin, ch, range->sleepTime );
 	oldAd	= ad;
 	mv = AtoDmV(ad, range->lsb );
@@ -346,21 +351,32 @@ float GetLux()
 		{	  16000,	 4,	2},
 		{	  30000,	 4,	2},
 		//{    100000,	 2,	1},
-		{	 160000,	 2,	1},
-		{	 300000,	 2,	1},
-		{	 800000,	 2,	1},
-		{   1000000,	 2,	1}	//s
+		{	 160000,	 2,	1},	//4,	2},	
+		{	 300000,	 2,	1},	//4,	2},	
+		{	 800000,	 2,	1},	//4,	2},	
+		{   1000000,	 2,	1},	//4,	2},		//s
+		{  10000000,	 2,	1},	//4,	2},	
+		{ 100000000,	 2,	1},	//4,	2},	
+		{1000000000,	 2,	1} 	//4,	2}	
 	};
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "  Lux use condensare\n");
 
+	//ピンの初期設定
+	//ドレイン用のピンはハイインピーダンスでもリーク電流があるので
+	//( (0.000947-0.000030)=0.000917[uA]=9.17e-4[uA]=91.7[nA]ぐらい )初期値としては出力用にしておく
 	InitPin(pin, PIN_OUT);
+	GPIO_CLR(pin);
+	InitPin(drainPin, PIN_OUT);	
+	GPIO_CLR(drainPin);
 
 	for(i=0; i<ARRAY_SIZE(range); i++)
 	{
 		//この時点でコンデンサの充電電圧から電流を計測すると
 		//突入電流の影響で計算上かなり上の数値が出るため
 		//倍の時間計測して1us当たりの充電電圧を計算しその上昇値を利用する
+		
+		//放電
 		Drain(drainPin, ch);
 		quantity = 5;
 
@@ -374,8 +390,14 @@ float GetLux()
 
 		break;
 	}
-	//放電
-	Drain(drainPin, ch);
+	
+	//ピンの初期化
+	InitPin(pin, PIN_OUT);
+	GPIO_CLR(pin);
+	//drainPinを出力用にしてLにするので放電も兼ねる
+	//ただし絶対に16mAを超えないように抵抗を入れる V/R=I
+	InitPin(drainPin, PIN_OUT);	
+	GPIO_CLR(drainPin);
 
 	//電圧の差分の平均値を求める
 	avgAd = (float)diffAd/(quantity-1);

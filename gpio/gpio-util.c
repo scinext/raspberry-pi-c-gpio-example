@@ -109,21 +109,21 @@ void PrintGpioStatus(volatile unsigned int *gpio)
 
 void PrintGpioPinMode(volatile unsigned int *gpio)
 {
-	//int i;
-	//printf("                                          R   9   8   7   6   5   4   3   2   1   0\n");
-	//for( i=0; i<=5; ++i)
-	//{
-	//	//GPIO Function Select 5
-	//	printf("GPFSEL%d        ", i);
-	//	printf("0x%X = ", (gpio+i));
-	//	PrintUintDelimiter(stdout, *(gpio + i), 3 );
-	//}
-	//printf("\n");
-	PrintRegStatus(stdout, gpio, 0, "GPFSEL1         ", 1);
-	PrintRegStatus(stdout, gpio, 1, "GPFSEL2         ", 0);
-	PrintRegStatus(stdout, gpio, 2, "GPFSEL3         ", 0);
-	PrintRegStatus(stdout, gpio, 3, "GPFSEL4         ", 0);
-	PrintRegStatus(stdout, gpio, 5, "GPFSEL5         ", 0);
+	int i;
+	printf("                                          R   9   8   7   6   5   4   3   2   1   0\n");
+	for( i=0; i<=5; ++i)
+	{
+		//GPIO Function Select 5
+		printf("GPFSEL%d        ", i);
+		printf("0x%X = ", (gpio+i));
+		PrintUintDelimiter(stdout, *(gpio + i), 3 );
+	}
+	printf("\n");
+	//PrintRegStatus(stdout, gpio, 0, "GPFSEL1         ", 1);
+	//PrintRegStatus(stdout, gpio, 1, "GPFSEL2         ", 0);
+	//PrintRegStatus(stdout, gpio, 2, "GPFSEL3         ", 0);
+	//PrintRegStatus(stdout, gpio, 3, "GPFSEL4         ", 0);
+	//PrintRegStatus(stdout, gpio, 5, "GPFSEL5         ", 0);
 }
 void PrintGpioLevStatus(volatile unsigned int *gpio)
 {

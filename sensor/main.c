@@ -28,6 +28,7 @@ float	g_temp;
 
 int		g_outLevel;
 
+#define MODE_ADC	0xFF
 int main(int argc, char *argv[])
 {
 	int i, sleepTime;
@@ -36,7 +37,7 @@ int main(int argc, char *argv[])
 	int opt;
 	extern char *optarg;
 
-	int ohm, mode;
+	int ohm, mode, ch;
 	float ret;
 
 	if(argc <= 1)
@@ -49,8 +50,9 @@ int main(int argc, char *argv[])
 	 *  -h 湿度
 	 *  -l 照度
 	 *  -L XX 照度(抵抗器使用) XXXXohm
+	 *	-i XX ADC XXch
 	 */
-	while( (opt = getopt(argc, argv, "DtphlL:")) != -1 )
+	while( (opt = getopt(argc, argv, "DtphlL:i:")) != -1 )
 	{
 		switch( opt )
 		{
@@ -72,6 +74,10 @@ int main(int argc, char *argv[])
 			case 'L':
 				mode = MODE_LUX_OHM;
 				ohm = atoi(optarg);
+				break;
+			case 'i':
+				mode = MODE_ADC;
+				ch = atoi(optarg);
 				break;
 			default:
 				break;
@@ -111,8 +117,14 @@ int main(int argc, char *argv[])
 			else
 				fprintf(stderr, "use %d ohm?\n", ohm);
 			break;
+		case MODE_ADC:
+			if( ch <= 1 )
+				ret = GetAD(ch);
+			else
+				fprintf(stderr, "ADC %d ch?\n", ch);
+			break;
 		default:
-			printf("mode select t-Temp, p-Press, h-Humidity, l-Lux(condenser) L-(ohm)\n");
+			printf("mode select t-Temp, p-Press, h-Humidity, l-Lux(condenser) L-(ohm) i-(ADC ch)\n");
 			break;
 	}
 
