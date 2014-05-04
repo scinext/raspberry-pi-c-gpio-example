@@ -116,7 +116,7 @@ int ClearLps331()
 int WakeUpLps331()
 {
 	uint8_t send[3];
-	uint8_t recive;
+	uint8_t status, oneShot;
 	int i;
 	int endFlag =  1<<LPS331_P_DA | 1<<LPS331_T_DA;
 	
@@ -139,20 +139,24 @@ int WakeUpLps331()
 	I2cWrite(send, 2);
 	//DispData(send, 2, "LPS331_CTRL2");
 	
+	//LPS331_P_DA(気圧) LPS331_T_DA(気温)の測定完了フラグが立つまで待機;
 	//printf("now sample\n");
 	//DispLps331Register();
 	//DispLps331Data();
 	//one_shotフラグを立て、変換が完了すると下がるので下がったら次の処理へ
 	//若しくはone_shotフラグでなくstatusレジストリを見る
-	//one_shotのフラグだとうまく動かなかったのでstatusレジスタに変更
+	//両方 one_shot と statusの二つを見るように
 	//現状RES_CONFが0x7Aの時30msでフラグが立ってて40で立ってなかったので40で
 	i=0;
 	do{
 		usleep(40000);
-		//send[0] = LPS331_SINGLE_DATA( LPS331_CTRL2 );
 		send[0] = LPS331_SINGLE_DATA( LPS331_STATUS );
 		I2cWrite(send, 1);
-		I2cRead(&recive, 1);
+		I2cRead(&status, 1);
+		
+		send[0] = LPS331_SINGLE_DATA( LPS331_CTRL2 );
+		I2cWrite(send, 1);
+		I2cRead(&oneShot, 1);
 		++i;
 		//基本的に一度で通過するはずだが
 		//たまにデバイスがまともに動かない?のかフラグが立たない or 消えないので
@@ -160,19 +164,13 @@ int WakeUpLps331()
 		if( i>30 )
 		{
 			syslog(LOG_WARNING, "lps331 one shot flag error\n");
-			syslog(LOG_WARNING, "    LPS331_STATUS addr 0x%02X : 0x%X  check count %d  endflag 0x%X\n",
-				LPS331_STATUS, recive, i, endFlag);
-				
-			send[0] = LPS331_SINGLE_DATA( LPS331_CTRL2 );
-			I2cWrite(send, 1);
-			I2cRead(&recive, 1);
-			syslog(LOG_WARNING, "    LPS331_CTRL2 addr 0x%02X : 0x%X\n",	LPS331_CTRL2, recive);
-			
+			syslog(LOG_WARNING, "    LPS331_STATUS addr 0x%02X : 0x%X\n",	LPS331_STATUS, status);
+			syslog(LOG_WARNING, "    LPS331_CTRL2 addr 0x%02X : 0x%X\n",	LPS331_CTRL2, oneShot);
 			return -1;
 		}
-	//LPS331_P_DA(気圧) LPS331_T_DA(気温)の測定完了フラグが立つまで待機;
-	}while( (recive&endFlag) != endFlag );
-	//printf("addr 0x%02X : 0x%X  check count %d\n", LPS331_STATUS, recive, i);
+	}while( ((status&endFlag) != endFlag) && ((oneShot&(1<<LPS331_ONE_SHOT)) == 0) );
+	//fprintf(stderr, "LPS331_STATUS addr 0x%02X : 0x%X\n",	LPS331_STATUS, status);
+	//fprintf(stderr, "LPS331_CTRL2 addr 0x%02X : 0x%X\n",	LPS331_CTRL2, oneShot);
 	//printf("sample ok\n");
 	//DispLps331Data();
 	

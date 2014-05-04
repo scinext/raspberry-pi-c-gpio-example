@@ -52,6 +52,8 @@ float	g_lux;
 int		g_logInterval = LOG_INTERVAL_DEF;
 //データ収取間隔(秒数)
 int		g_dataInterval = DATA_INTERVAL_DEF;
+int		g_dataStatus;
+int		g_dataStep;
 
 
 void Dprintf(const char *str, ...)
@@ -235,7 +237,7 @@ int InitServeRecive(int debug, int sensorOutLevel)
 		}
 		MySysLog(LOG_DEBUG, "    create recive message queue : %d\n", g_mq);
 
-		MySysLog(LOG_DEBUG, "    sensor log setting level: %d, console: %d\n", sensorOutLevel, debug);
+		MySysLog(LOG_DEBUG, "    sensor log setting level: %d, debugMode: %d\n", sensorOutLevel, debug);
 		//センサーの出力情報の設定
 		SetSensorLogLevel(sensorOutLevel, debug);
 
