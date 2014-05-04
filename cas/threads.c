@@ -173,7 +173,7 @@ void* SensorDataThread(void *param)
 	siginfo_t	sig;
 	struct timespec timeOut;
 	int sigNo;
-	int oldOutputMode = MODE_CLOCK;
+	//int oldOutputMode = MODE_CLOCK;
 	unsigned int i;
 	const unsigned int dpSleepTime = 100000;
 
@@ -265,7 +265,7 @@ void* SensorLoggerThread(void* param)
 	time_t 		t;
 	struct tm 	*ts;
 	char		dateBuf[20];
-
+	
 	//シグナルのタイムアウト
 	timeOut.tv_sec = g_logInterval;
 	timeOut.tv_nsec = 0;
@@ -289,13 +289,13 @@ void* SensorLoggerThread(void* param)
 		//正常に取得てきていない場合はエラーを表示させる
 		if( g_dataStatus != 0 )
 		{
-			char buf[6];
 			g_outputMode = MODE_OUTPUT;
-			sprintf(buf, "ERR%d", g_dataStatus);
-			ReverseInsert(buf);
+			sprintf(dateBuf, "ERR%d", g_dataStatus);
+			ReverseInsert(dateBuf);
 		}
 		else
-		{	
+		{
+			g_outputMode = MODE_CLOCK;
 			t  = time(NULL);
 			ts = localtime(&t);
 			//strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
