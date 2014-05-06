@@ -18,7 +18,9 @@ int SetSignalBlock(sigset_t *ss);
 //センサからデータを取得
 void* SensorDataThread(void *param);
 
-//センサのデータをロギングする
-void* SensorLoggerThread(void *param);
+void SensorLog();
+
+////センサのデータをロギングする
+//void* SensorLoggerThread(void *param);
 
 #endif
