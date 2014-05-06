@@ -53,7 +53,7 @@ int		g_logInterval = LOG_INTERVAL_DEF;
 //データ収取間隔(秒数)
 int		g_dataInterval = DATA_INTERVAL_DEF;
 int		g_dataStatus;
-
+int		g_oldDataStatus;
 
 void Dprintf(const char *str, ...)
 {

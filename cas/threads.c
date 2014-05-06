@@ -55,6 +55,7 @@ extern int		g_logInterval;
 //データ収取間隔(秒数)
 extern int		g_dataInterval;
 extern int		g_dataStatus;
+extern int		g_oldDataStatus;
 
 
 void InitShiftRegister()
@@ -200,37 +201,37 @@ void* SensorDataThread(void *param)
 		//}
 		
 		//データが正常に取れているか確認
-		g_dataStatus = 1;
+		g_dataStatus = 2;
 		//Lps331をone shotモードでたたき起こす
 		WakeUpLps331();
 		g_dispData[0] |= SEG_DP;
 		usleep(dpSleepTime);
 		
 		
-		g_dataStatus = 2;
+		g_dataStatus = 3;
 		g_temp	= GetTemp();
 		g_dispData[1] |= SEG_DP;
 		usleep(dpSleepTime);
 		
 		
-		g_dataStatus = 3;
+		g_dataStatus = 4;
 		g_press	= GetPress();
 		g_dispData[2] |= SEG_DP;
 		usleep(dpSleepTime);
 		
 		
-		g_dataStatus = 3;
+		g_dataStatus = 5;
 		g_lux	= GetLux();
 		g_dispData[3] |= SEG_DP;
 		usleep(dpSleepTime);
 		
 		
-		g_dataStatus = 4;
+		g_dataStatus = 6;
 		//g_lux   = GetLuxOhm(100e+3); //100kohm
 		g_hum	= GetHumidity();
 		
 		//正常にデータ取得
-		g_dataStatus = 0;
+		g_dataStatus = g_dataStatus==0 ? 1 : 0;
 
 		////モードを元に戻す
 		//if( g_dataInterval >= 60 )
@@ -287,7 +288,7 @@ void* SensorLoggerThread(void* param)
 		//データ自体は他のスレッドで取得してる
 		
 		//正常に取得てきていない場合はエラーを表示させる
-		if( g_dataStatus != 0 )
+		if( g_dataStatus >= 2 || g_oldDataStatus == g_dataStatus)
 		{
 			g_outputMode = MODE_OUTPUT;
 			sprintf(dateBuf, "ERR%d", g_dataStatus);
@@ -295,6 +296,8 @@ void* SensorLoggerThread(void* param)
 		}
 		else
 		{
+			g_oldDataStatus = g_dataStatus;
+			
 			g_outputMode = MODE_CLOCK;
 			t  = time(NULL);
 			ts = localtime(&t);
