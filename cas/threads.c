@@ -201,23 +201,23 @@ void* SensorDataThread(void *param)
 		//}
 		
 		//Lps331をone shotモードでたたき起こす
-		WakeUpLps331();
 		g_dispData[0] |= SEG_DP;
 		usleep(dpSleepTime);
+		WakeUpLps331();
 		
 		
-		g_temp	= GetTemp();
 		g_dispData[1] |= SEG_DP;
 		usleep(dpSleepTime);
+		g_temp	= GetTemp();
 		
 		
-		g_press	= GetPress();
 		g_dispData[2] |= SEG_DP;
 		usleep(dpSleepTime);
+		g_press	= GetPress();
 		
-		g_lux	= GetLux();
 		g_dispData[3] |= SEG_DP;
 		usleep(dpSleepTime);
+		g_lux	= GetLux();
 		
 		//g_lux   = GetLuxOhm(100e+3); //100kohm
 		g_hum	= GetHumidity();
