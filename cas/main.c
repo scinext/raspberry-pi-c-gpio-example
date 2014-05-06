@@ -48,12 +48,12 @@ float	g_press;
 float	g_temp;
 float	g_hum;
 float	g_lux;
-//ログ収集間隔(秒数)
-int		g_logInterval = LOG_INTERVAL_DEF;
+////ログ収集間隔(秒数)
+//int		g_logInterval = LOG_INTERVAL_DEF;
 //データ収取間隔(秒数)
-int		g_dataInterval = DATA_INTERVAL_DEF;
-int		g_dataStatus;
-int		g_oldDataStatus;
+int		g_dataInterval = LOG_INTERVAL_DEF;//DATA_INTERVAL_DEF;
+//int		g_dataStatus;
+//int		g_oldDataStatus;
 
 void Dprintf(const char *str, ...)
 {
@@ -132,18 +132,19 @@ void ReciveQueue()
 	pthread_create(&dataThread, NULL, SensorDataThread, (void *)NULL);
 	//7segのスレッド作成
 	pthread_create(&dispThreadId, NULL, DispDataThread, (void *)NULL);
-	//ロガー用 ログのインターバルが1秒以上なら行う
-	if( g_logInterval >= 1 )
-	{
-		//データ収集間隔のほうが大きい場合はそちらになる
-		g_logInterval = g_logInterval > g_dataInterval ? g_logInterval : g_dataInterval;
-		pthread_create(&logThreadId, NULL, SensorLoggerThread, (void *)NULL);
-		MySysLog(LOG_DEBUG, "log interval %d\n", g_logInterval);
-	}
-	else
-	{
-		MySysLog(LOG_DEBUG, "no log\n");
-	}
+	
+	////ロガー用 ログのインターバルが1秒以上なら行う
+	//if( g_logInterval >= 1 )
+	//{
+	//	//データ収集間隔のほうが大きい場合はそちらになる
+	//	g_logInterval = g_logInterval > g_dataInterval ? g_logInterval : g_dataInterval;
+	//	pthread_create(&logThreadId, NULL, SensorLoggerThread, (void *)NULL);
+	//	MySysLog(LOG_DEBUG, "log interval %d\n", g_logInterval);
+	//}
+	//else
+	//{
+	//	MySysLog(LOG_DEBUG, "no log\n");
+	//}
 
 	//メッセージキューでやり取りするメッセージのサイズの取得(設定はできない)
 	mq_getattr(g_mq, &mqAttr);
@@ -163,17 +164,17 @@ void ReciveQueue()
 	//7segのスレッドを終了させる
 	g_threadStatus = 0;
 
-	//ログスレッドの終了
-	if( g_logInterval >= 1 )
-	{
-		pthread_sigqueue(logThreadId, THREAD_MSG_EXIT, 0);
-		pthread_join(logThreadId, NULL);
-		MySysLog(LOG_DEBUG, "Log Thread end\n");
-	}
-	else
-	{
-		MySysLog(LOG_DEBUG, "No Log\n");
-	}
+	////ログスレッドの終了
+	//if( g_logInterval >= 1 )
+	//{
+	//	pthread_sigqueue(logThreadId, THREAD_MSG_EXIT, 0);
+	//	pthread_join(logThreadId, NULL);
+	//	MySysLog(LOG_DEBUG, "Log Thread end\n");
+	//}
+	//else
+	//{
+	//	MySysLog(LOG_DEBUG, "No Log\n");
+	//}
 
 	//表示スレッドの終了
 	pthread_join(dispThreadId, NULL);
@@ -326,7 +327,8 @@ int main(int argc, char *argv[])
 				printf("-c 時計                    -y 年(+和暦)           -d 日付\n");
 				printf("-p 大気圧                  -t 温度                -l 照度                -h 湿度\n");
 				printf("-a XX アニメーションXX     -m XX XXモードの表示   -o XXXX XXXXを7segに表示(できれば)\n");
-				printf("-I XX データ収集の間隔(s)  -i XX ログをとる間隔(s)\n");
+				printf("-i XX データ収集の間隔(s)\n");
+				//printf("-I XX データ収集の間隔(s)  -i XX ログをとる間隔(s)\n");
 				printf("-H これ                    -q 終了                -r プロセスをリセット\n");
 				printf("-D デバッグ                -f XX ログやデバッグ時の情報の細かさ 0 or それ以外1\n");
 				return 0;
@@ -375,12 +377,12 @@ int main(int argc, char *argv[])
 			case 'o':
 				strncpy(buf, optarg, sizeof(buf));
 				break;
+			//case 'i':
+			//	g_logInterval = atoi(optarg);
+			//	break;
 			case 'i':
-				g_logInterval = atoi(optarg);
-				break;
-			case 'I':
 				g_dataInterval = atoi(optarg);
-				g_dataInterval = g_dataInterval > DATA_INTERVAL_MIN ? g_dataInterval : DATA_INTERVAL_MIN;
+				//g_dataInterval = g_dataInterval > DATA_INTERVAL_MIN ? g_dataInterval : DATA_INTERVAL_MIN;
 				break;
 			case 'q':
 				quit = 1;

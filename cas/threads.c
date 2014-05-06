@@ -50,12 +50,12 @@ extern float	g_press;
 extern float	g_temp;
 extern float	g_hum;
 extern float	g_lux;
-//ログ収集間隔(秒数)
-extern int		g_logInterval;
+////ログ収集間隔(秒数)
+//extern int		g_logInterval;
 //データ収取間隔(秒数)
 extern int		g_dataInterval;
-extern int		g_dataStatus;
-extern int		g_oldDataStatus;
+//extern int		g_dataStatus;
+//extern int		g_oldDataStatus;
 
 
 void InitShiftRegister()
@@ -200,45 +200,37 @@ void* SensorDataThread(void *param)
 		//	g_outputMode	= MODE_ANI_0;
 		//}
 		
-		//データが正常に取れているか確認
-		g_dataStatus = 2;
 		//Lps331をone shotモードでたたき起こす
 		WakeUpLps331();
 		g_dispData[0] |= SEG_DP;
 		usleep(dpSleepTime);
 		
 		
-		g_dataStatus = 3;
 		g_temp	= GetTemp();
 		g_dispData[1] |= SEG_DP;
 		usleep(dpSleepTime);
 		
 		
-		g_dataStatus = 4;
 		g_press	= GetPress();
 		g_dispData[2] |= SEG_DP;
 		usleep(dpSleepTime);
 		
-		
-		g_dataStatus = 5;
 		g_lux	= GetLux();
 		g_dispData[3] |= SEG_DP;
 		usleep(dpSleepTime);
 		
-		
-		g_dataStatus = 6;
 		//g_lux   = GetLuxOhm(100e+3); //100kohm
 		g_hum	= GetHumidity();
 		
-		//正常にデータ取得
-		g_dataStatus = g_dataStatus==0 ? 1 : 0;
-
 		////モードを元に戻す
 		//if( g_dataInterval >= 60 )
 		//	g_outputMode = oldOutputMode;
 		usleep(dpSleepTime);
 		for( i=0; i<SEG_COUNT; i++)
 			g_dispData[i] &= ~(SEG_DP);
+			
+		//正常にデータ取得後データの保存
+		SensorLog();
 		
 		sigNo = sigtimedwait( &ss, &sig, &timeOut);
 		//何らかの形でシグナルが来なかった時の保険
@@ -252,72 +244,180 @@ void* SensorDataThread(void *param)
 
 	pthread_exit(NULL);
 }
-
-
-//センサーのロギング
-void* SensorLoggerThread(void* param)
+void SensorLog()
 {
-	//スレッドのシグナル用
-	sigset_t	ss;
-	siginfo_t	sig;
-	struct timespec timeOut;
-	int			sigNo;
-
 	time_t 		t;
 	struct tm 	*ts;
 	char		dateBuf[20];
 	
-	//シグナルのタイムアウト
-	timeOut.tv_sec = g_logInterval;
-	timeOut.tv_nsec = 0;
-	if( SetSignalBlock(&ss) == -1 )
-		pthread_exit(NULL);
+	t  = time(NULL);
+	ts = localtime(&t);
+	//strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
+	strftime(dateBuf, sizeof(dateBuf), "%T", ts);
 
-	do{
-		sigNo = sigtimedwait( &ss, &sig, &timeOut);
-		if( sigNo == THREAD_MSG_EXIT)
-		{
-			//MySysLog(LOG_DEBUG, "sig No 0x%X  0x%X  0x%X\n", sigNo , sig.si_signo, sig.si_errno, sig.si_code);
-			MySysLog(LOG_DEBUG, "Log Thread exit signal\n");
-			break;
-		}
-		//何らかの形でシグナルが来なかった時の保険
-		if( g_threadStatus == 0 )
-			break;
-
-		//データ自体は他のスレッドで取得してる
-		
-		//正常に取得てきていない場合はエラーを表示させる
-		if( g_dataStatus >= 2 || g_oldDataStatus == g_dataStatus)
-		{
-			g_outputMode = MODE_OUTPUT;
-			sprintf(dateBuf, "ERR%d", g_dataStatus);
-			ReverseInsert(dateBuf);
-		}
-		else
-		{
-			g_oldDataStatus = g_dataStatus;
-			
-			g_outputMode = MODE_CLOCK;
-			t  = time(NULL);
-			ts = localtime(&t);
-			//strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
-			strftime(dateBuf, sizeof(dateBuf), "%T", ts);
+	//加工しやすいようにTSV形式になるように
+	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "%s", dateBuf);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_temp);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f",	g_press);
+	if( g_lux < 1 )
+		SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.4f", 	g_lux);
+	else
+		SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_lux);
+	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f\n",	g_hum);
 	
-			//加工しやすいようにTSV形式になるように
-			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "%s", dateBuf);
-			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_temp);
-			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f",	g_press);
-			if( g_lux < 1 )
-				SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.4f", 	g_lux);
-			else
-				SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_lux);
-			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f\n",	g_hum);
-		}
-	}while( 1 );
-
-	g_threadStatus = 0;
-
-	pthread_exit(NULL);
 }
 
+////センサからデータを取得
+//void* SensorDataThread(void *param)
+//{
+//	sigset_t	ss;
+//	siginfo_t	sig;
+//	struct timespec timeOut;
+//	int sigNo;
+//	//int oldOutputMode = MODE_CLOCK;
+//	unsigned int i;
+//	const unsigned int dpSleepTime = 100000;
+//
+//	//シグナルのタイムアウト
+//	timeOut.tv_sec = g_dataInterval;
+//	timeOut.tv_nsec = 0;
+//	if( SetSignalBlock(&ss) == -1 )
+//		pthread_exit(NULL);
+//
+//	//スレッドを高優先に
+//	SetPriority(HIGH_PRIO);
+//
+//	do{
+//		if( sigNo == THREAD_MSG_EXIT )
+//		{
+//			MySysLog(LOG_DEBUG, "Data Thread exit signal\n");
+//			break;
+//		}
+//		////センサー間隔が1分以上はセンサー実行時アニメーションモードにする
+//		//if( g_dataInterval >= 60 )
+//		//{
+//		//	oldOutputMode	= g_outputMode;
+//		//	g_outputMode	= MODE_ANI_0;
+//		//}
+//		
+//		//データが正常に取れているか確認
+//		g_dataStatus = 2;
+//		//Lps331をone shotモードでたたき起こす
+//		WakeUpLps331();
+//		g_dispData[0] |= SEG_DP;
+//		usleep(dpSleepTime);
+//		
+//		
+//		g_dataStatus = 3;
+//		g_temp	= GetTemp();
+//		g_dispData[1] |= SEG_DP;
+//		usleep(dpSleepTime);
+//		
+//		
+//		g_dataStatus = 4;
+//		g_press	= GetPress();
+//		g_dispData[2] |= SEG_DP;
+//		usleep(dpSleepTime);
+//		
+//		
+//		g_dataStatus = 5;
+//		g_lux	= GetLux();
+//		g_dispData[3] |= SEG_DP;
+//		usleep(dpSleepTime);
+//		
+//		
+//		g_dataStatus = 6;
+//		//g_lux   = GetLuxOhm(100e+3); //100kohm
+//		g_hum	= GetHumidity();
+//		
+//		//正常にデータ取得
+//		g_dataStatus = g_dataStatus==0 ? 1 : 0;
+//
+//		////モードを元に戻す
+//		//if( g_dataInterval >= 60 )
+//		//	g_outputMode = oldOutputMode;
+//		usleep(dpSleepTime);
+//		for( i=0; i<SEG_COUNT; i++)
+//			g_dispData[i] &= ~(SEG_DP);
+//		
+//		sigNo = sigtimedwait( &ss, &sig, &timeOut);
+//		//何らかの形でシグナルが来なかった時の保険
+//		if( g_threadStatus == 0 )
+//			break;
+//	}while( 1 );
+//
+//	SetPriority(NOMAL_PRIO);
+//
+//	g_threadStatus = 0;
+//
+//	pthread_exit(NULL);
+//}
+//
+//
+////センサーのロギング
+//void* SensorLoggerThread(void* param)
+//{
+//	//スレッドのシグナル用
+//	sigset_t	ss;
+//	siginfo_t	sig;
+//	struct timespec timeOut;
+//	int			sigNo;
+//
+//	time_t 		t;
+//	struct tm 	*ts;
+//	char		dateBuf[20];
+//	
+//	//シグナルのタイムアウト
+//	timeOut.tv_sec = g_logInterval;
+//	timeOut.tv_nsec = 0;
+//	if( SetSignalBlock(&ss) == -1 )
+//		pthread_exit(NULL);
+//
+//	do{
+//		sigNo = sigtimedwait( &ss, &sig, &timeOut);
+//		if( sigNo == THREAD_MSG_EXIT)
+//		{
+//			//MySysLog(LOG_DEBUG, "sig No 0x%X  0x%X  0x%X\n", sigNo , sig.si_signo, sig.si_errno, sig.si_code);
+//			MySysLog(LOG_DEBUG, "Log Thread exit signal\n");
+//			break;
+//		}
+//		//何らかの形でシグナルが来なかった時の保険
+//		if( g_threadStatus == 0 )
+//			break;
+//
+//		//データ自体は他のスレッドで取得してる
+//		
+//		//正常に取得てきていない場合はエラーを表示させる
+//		if( g_dataStatus >= 2 || g_oldDataStatus == g_dataStatus)
+//		{
+//			g_outputMode = MODE_OUTPUT;
+//			sprintf(dateBuf, "ERR%d", g_dataStatus);
+//			ReverseInsert(dateBuf);
+//		}
+//		else
+//		{
+//			g_oldDataStatus = g_dataStatus;
+//			
+//			g_outputMode = MODE_CLOCK;
+//			t  = time(NULL);
+//			ts = localtime(&t);
+//			//strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
+//			strftime(dateBuf, sizeof(dateBuf), "%T", ts);
+//	
+//			//加工しやすいようにTSV形式になるように
+//			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "%s", dateBuf);
+//			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_temp);
+//			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f",	g_press);
+//			if( g_lux < 1 )
+//				SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.4f", 	g_lux);
+//			else
+//				SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_lux);
+//			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f\n",	g_hum);
+//		}
+//	}while( 1 );
+//
+//	g_threadStatus = 0;
+//
+//	pthread_exit(NULL);
+//}
+//
