@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "ADC %d ch?\n", ch);
 			break;
 		default:
-			printf("mode select t-Temp, p-Press, h-Humidity, l-Lux(condenser) L-(ohm) i-(ADC ch)\n");
+			printf("mode select t-Temp, p-Press, h-Humidity, l-Lux(condenser) L-(ohm) i-(ADC ch) DtphlL:i:\n");
 			break;
 	}
 

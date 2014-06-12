@@ -8,7 +8,6 @@ typedef struct{
 	int lsb;
 }LuxRangeData;
 
-
 #define SENSOR_LOG_LEVEL_0	0
 #define SENSOR_LOG_LEVEL_1	1
 #define LOG_DIR					"/var/log/cas/"
@@ -23,5 +22,7 @@ float GetHumidity();
 
 float GetPress();
 float GetTemp();
+
+float GetCoreTemp();
 
 #endif

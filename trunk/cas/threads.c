@@ -50,12 +50,15 @@ extern float	g_press;
 extern float	g_temp;
 extern float	g_hum;
 extern float	g_lux;
+extern float	g_coreTemp;
 ////ログ収集間隔(秒数)
 //extern int		g_logInterval;
 //データ収取間隔(秒数)
 extern int		g_dataInterval;
 //extern int		g_dataStatus;
 //extern int		g_oldDataStatus;
+//次のログまでの時間(s)
+extern struct timespec	g_waitLog;
 
 
 void InitShiftRegister()
@@ -199,39 +202,47 @@ void* SensorDataThread(void *param)
 		//	oldOutputMode	= g_outputMode;
 		//	g_outputMode	= MODE_ANI_0;
 		//}
-		
+
 		//Lps331をone shotモードでたたき起こす
-		g_dispData[0] |= SEG_DP;
-		usleep(dpSleepTime);
-		WakeUpLps331();
-		
-		
-		g_dispData[1] |= SEG_DP;
-		usleep(dpSleepTime);
-		g_temp	= GetTemp();
-		
-		
-		g_dispData[2] |= SEG_DP;
-		usleep(dpSleepTime);
-		g_press	= GetPress();
-		
-		g_dispData[3] |= SEG_DP;
-		usleep(dpSleepTime);
-		g_lux	= GetLux();
-		
-		//g_lux   = GetLuxOhm(100e+3); //100kohm
-		g_hum	= GetHumidity();
-		
+			g_dispData[0] |= SEG_DP;
+			usleep(dpSleepTime);
+			WakeUpLps331();
+
+		//外気温
+			g_dispData[1] |= SEG_DP;
+			usleep(dpSleepTime);
+			g_temp	= GetTemp();
+
+		//気圧
+			g_dispData[2] |= SEG_DP;
+			usleep(dpSleepTime);
+			g_press	= GetPress();
+
+		//照度
+			g_dispData[3] |= SEG_DP;
+			usleep(dpSleepTime);
+			//g_lux   = GetLuxOhm(100e+3); //100kohm
+			g_lux	= GetLux();
+
+		//湿度
+			g_hum	= GetHumidity();
+
+		//CPU温度
+			g_coreTemp = GetCoreTemp();
+
 		////モードを元に戻す
 		//if( g_dataInterval >= 60 )
 		//	g_outputMode = oldOutputMode;
 		usleep(dpSleepTime);
 		for( i=0; i<SEG_COUNT; i++)
 			g_dispData[i] &= ~(SEG_DP);
-			
+
 		//正常にデータ取得後データの保存
 		SensorLog();
-		
+
+		//残り時間用に現在の時間の取得
+		clock_gettime(CLOCK_MONOTONIC, &g_waitLog);
+
 		sigNo = sigtimedwait( &ss, &sig, &timeOut);
 		//何らかの形でシグナルが来なかった時の保険
 		if( g_threadStatus == 0 )
@@ -249,22 +260,58 @@ void SensorLog()
 	time_t 		t;
 	struct tm 	*ts;
 	char		dateBuf[20];
-	
+
 	t  = time(NULL);
 	ts = localtime(&t);
 	//strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
 	strftime(dateBuf, sizeof(dateBuf), "%T", ts);
 
 	//加工しやすいようにTSV形式になるように
-	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "%s", dateBuf);
-	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_temp);
-	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f",	g_press);
+
+	//SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%s\t",		dateBuf);		//時刻
+	//SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%.1f\t", 	g_temp);		//外気温
+	//SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%.1f\t",	g_press);		//大気圧
+	//if( g_lux < 1 )
+	//	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "%.4f\t", 	g_lux);			//照度
+	//else
+	//	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "%.1f\t", 	g_lux);			//照度
+	//SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%.1f\t",	g_hum);			//湿度
+	//SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%.1f\n",	g_coreTemp);	//CPU温度
 	if( g_lux < 1 )
-		SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.4f", 	g_lux);
+	{
+		SensorLogPrintf(SENSOR_LOG_LEVEL_0,
+			"%s\t"		//時刻
+			"%.1f\t"	//外気温
+			"%.1f\t"	//大気圧
+			"%.4f\t"	//照度
+			"%.1f\t"	//湿度
+			"%.1f\n"	//CPU温度
+				, dateBuf		//時刻
+				, g_temp        //外気温
+				, g_press       //大気圧
+				, g_lux         //照度
+				, g_hum         //湿度
+				, g_coreTemp    //CPU温度
+		);
+	}
 	else
-		SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_lux);
-	SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f\n",	g_hum);
-	
+	{
+		SensorLogPrintf(SENSOR_LOG_LEVEL_0,
+			"%s\t"		//時刻
+			"%.1f\t"	//外気温
+			"%.1f\t"	//大気圧
+			"%.1f\t"	//照度
+			"%.1f\t"	//湿度
+			"%.1f\n"	//CPU温度
+				, dateBuf		//時刻
+				, g_temp        //外気温
+				, g_press       //大気圧
+				, g_lux         //照度
+				, g_hum         //湿度
+				, g_coreTemp    //CPU温度
+		);
+	}
+
 }
 
 ////センサからデータを取得
@@ -299,37 +346,37 @@ void SensorLog()
 //		//	oldOutputMode	= g_outputMode;
 //		//	g_outputMode	= MODE_ANI_0;
 //		//}
-//		
+//
 //		//データが正常に取れているか確認
 //		g_dataStatus = 2;
 //		//Lps331をone shotモードでたたき起こす
 //		WakeUpLps331();
 //		g_dispData[0] |= SEG_DP;
 //		usleep(dpSleepTime);
-//		
-//		
+//
+//
 //		g_dataStatus = 3;
 //		g_temp	= GetTemp();
 //		g_dispData[1] |= SEG_DP;
 //		usleep(dpSleepTime);
-//		
-//		
+//
+//
 //		g_dataStatus = 4;
 //		g_press	= GetPress();
 //		g_dispData[2] |= SEG_DP;
 //		usleep(dpSleepTime);
-//		
-//		
+//
+//
 //		g_dataStatus = 5;
 //		g_lux	= GetLux();
 //		g_dispData[3] |= SEG_DP;
 //		usleep(dpSleepTime);
-//		
-//		
+//
+//
 //		g_dataStatus = 6;
 //		//g_lux   = GetLuxOhm(100e+3); //100kohm
 //		g_hum	= GetHumidity();
-//		
+//
 //		//正常にデータ取得
 //		g_dataStatus = g_dataStatus==0 ? 1 : 0;
 //
@@ -339,7 +386,7 @@ void SensorLog()
 //		usleep(dpSleepTime);
 //		for( i=0; i<SEG_COUNT; i++)
 //			g_dispData[i] &= ~(SEG_DP);
-//		
+//
 //		sigNo = sigtimedwait( &ss, &sig, &timeOut);
 //		//何らかの形でシグナルが来なかった時の保険
 //		if( g_threadStatus == 0 )
@@ -366,7 +413,7 @@ void SensorLog()
 //	time_t 		t;
 //	struct tm 	*ts;
 //	char		dateBuf[20];
-//	
+//
 //	//シグナルのタイムアウト
 //	timeOut.tv_sec = g_logInterval;
 //	timeOut.tv_nsec = 0;
@@ -386,7 +433,7 @@ void SensorLog()
 //			break;
 //
 //		//データ自体は他のスレッドで取得してる
-//		
+//
 //		//正常に取得てきていない場合はエラーを表示させる
 //		if( g_dataStatus >= 2 || g_oldDataStatus == g_dataStatus)
 //		{
@@ -397,13 +444,13 @@ void SensorLog()
 //		else
 //		{
 //			g_oldDataStatus = g_dataStatus;
-//			
+//
 //			g_outputMode = MODE_CLOCK;
 //			t  = time(NULL);
 //			ts = localtime(&t);
 //			//strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
 //			strftime(dateBuf, sizeof(dateBuf), "%T", ts);
-//	
+//
 //			//加工しやすいようにTSV形式になるように
 //			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "%s", dateBuf);
 //			SensorLogPrintf(SENSOR_LOG_LEVEL_0, "\t%.1f", 	g_temp);

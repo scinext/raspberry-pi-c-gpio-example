@@ -66,7 +66,7 @@ void SensorLogPrintf(int level, const char *str, ...)
 			t	= time(NULL);
 			ts	= localtime(&t);
 			strftime(file, sizeof(file), LOG_DIR "%F.log", ts);
-			
+
 			//logディレクトリの確認 後でここにグラフを作成するためマスクを外してall-OKに
 			exist = stat(LOG_DIR, &status);
 			if( exist == -1 )
@@ -75,7 +75,7 @@ void SensorLogPrintf(int level, const char *str, ...)
 				mkdir(LOG_DIR, 0777);
 				umask(proccessMask);
 			}
-			
+
 			//ファイルの存在確認ない場合はデータの見出しを挿入するのでフラグを立てる
 			exist = stat(file, &status);
 			fp = fopen(file, "a");
@@ -83,7 +83,9 @@ void SensorLogPrintf(int level, const char *str, ...)
 			{
 				if( exist == -1 )
 				{
+					char header[256];
 					char date[20]; //YYYY-MM-DD
+
 					//const char userName[] = "pi"; //ファイルの所有者をpiにする(ハードコード)
 					//struct passwd *pw = NULL;
 					//作成時のみ実行
@@ -93,10 +95,21 @@ void SensorLogPrintf(int level, const char *str, ...)
 					//pw = getpwnam(userName);
 					//if( pw != NULL )
 					//	chown(file, pw->pw_uid, pw->pw_gid);
-						
+
 					strftime(date, sizeof(date), "%F", ts);
-					fprintf(fp, "%s\n", date);
-					fprintf(fp, "time\tTemp\tPress\tLux\tHumidity\n");
+					snprintf(header, sizeof(header),
+						"%s\n"
+						"time\t"
+						"Temp\t"
+						"Press\t"
+						"Lux\t"
+						"Humidity\t"
+						"CoreTemp",
+						date
+					);
+					fprintf(fp, "%s\n", header);
+					//fprintf(fp, "%s\n", date);
+					//fprintf(fp, "time\tTemp\tPress\tLux\tHumidity\n");
 				}
 				vfprintf(fp, str, args);
 				fclose(fp);
@@ -113,38 +126,43 @@ void Drain(int pin, int ch)
 {
 	////ドレインピンを使用して放電
 	int i, ad1;
-	
-	//InitPin(pin, PIN_OUT);
+
+	//PIN_OUTのCLRにしてコンデンサの電荷をGNDに流す
+	//必ず電流制限抵抗をつけること!!
+	InitPin(pin, PIN_OUT);
 	GPIO_CLR(pin);
-	InitPin(pin, PIN_IN);	
-	PullUpDown(pin, PULL_DOWN);
-	//GPIO_SET(pin);
+
+	//たまにうまく動かないことがあるので中止
+	//GPIO_CLR(pin);
+	//InitPin(pin, PIN_IN);
+	//PullUpDown(pin, PULL_DOWN);
+
 	//PrintGpioPinMode(gpio);
 	//PrintGpioLevStatus(gpio);
-	
+
 	//ドレインピンを使用して放電 最大20ms*50 = 1s
 	for(i=0; i<50; i++)
 	{
 		ad1 = GetAD(ch);
-		//20ms
-		usleep(20000);
-		//printf("\td i-%03d %04d", i, ad1);
+		//printf("\td i-%02d %04d\n", i, ad1);
 		//if( (i+1) % 7 == 0 )
 		//	printf("\n");
-			
+
+		//20ms
+		usleep(20000);
+
 		if( ad1 == 0 )
 			break;
 	}
 	//printf("\n");
-	
+
 	//ハイインピーダンスへ
 	//ハイインピーダンスでもリーク電流が発生するので注意
-	// (0.000947-0.000030)=0.000917[uA]=9.17e-4[uA]ぐらい 
-	
-	//InitPin(pin, PIN_IN);
+	// (0.000947-0.000030)=0.000917[uA]=9.17e-4[uA]ぐらい
+	GPIO_CLR(pin);
+	InitPin(pin, PIN_IN);
 	PullUpDown(pin, PULL_NONE);
-	
-	
+
 	//PrintGpioPinMode(gpio);
 	//PrintGpioLevStatus(gpio);
 	return;
@@ -351,13 +369,13 @@ float GetLux()
 		{	  16000,	 4,	2},
 		{	  30000,	 4,	2},
 		//{    100000,	 2,	1},
-		{	 160000,	 2,	1},	//4,	2},	
-		{	 300000,	 2,	1},	//4,	2},	
-		{	 800000,	 2,	1},	//4,	2},	
+		{	 160000,	 2,	1},	//4,	2},
+		{	 300000,	 2,	1},	//4,	2},
+		{	 800000,	 2,	1},	//4,	2},
 		{   1000000,	 2,	1},	//4,	2},		//s
-		{  10000000,	 2,	1},	//4,	2},	
-		{ 100000000,	 2,	1},	//4,	2},	
-		{1000000000,	 2,	1} 	//4,	2}	
+		{  10000000,	 2,	1},	//4,	2},
+		{ 100000000,	 2,	1},	//4,	2},
+		{1000000000,	 2,	1} 	//4,	2}
 	};
 
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "  Lux use condensare\n");
@@ -367,7 +385,7 @@ float GetLux()
 	//( (0.000947-0.000030)=0.000917[uA]=9.17e-4[uA]=91.7[nA]ぐらい )初期値としては出力用にしておく
 	InitPin(pin, PIN_OUT);
 	GPIO_CLR(pin);
-	InitPin(drainPin, PIN_OUT);	
+	InitPin(drainPin, PIN_OUT);
 	GPIO_CLR(drainPin);
 
 	for(i=0; i<ARRAY_SIZE(range); i++)
@@ -376,10 +394,11 @@ float GetLux()
 		//突入電流の影響で計算上かなり上の数値が出るため
 		//倍の時間計測して1us当たりの充電電圧を計算しその上昇値を利用する
 		
+		//GPIOの準備で最初の一回だけ時間が長めにかかるのかも
+
 		//放電
 		Drain(drainPin, ch);
 		quantity = 5;
-
 		if( range[i].sleepTime < NO_DRAIN )
 			diffAd = GetAllDrainVoltage(pin, ch, drainPin, &range[i], quantity);
 		else
@@ -390,13 +409,13 @@ float GetLux()
 
 		break;
 	}
-	
+
 	//ピンの初期化
 	InitPin(pin, PIN_OUT);
 	GPIO_CLR(pin);
 	//drainPinを出力用にしてLにするので放電も兼ねる
 	//ただし絶対に16mAを超えないように抵抗を入れる V/R=I
-	InitPin(drainPin, PIN_OUT);	
+	InitPin(drainPin, PIN_OUT);
 	GPIO_CLR(drainPin);
 
 	//電圧の差分の平均値を求める
@@ -419,8 +438,8 @@ float GetLux()
 	//a = (mv*0.47)/(range[i].sleepTime*1e-3);
 	a = (mv*0.47)/(range[i].sleepTime*1e-3);
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "I(uA)\t%f\n", a);
-	
-	
+
+
 	//温度補正グラフ[Relative Photocurrent(相対光電流) : Ambient Temperature(周囲温度)]
 	float temp, correction;
 	//温度によって流れる光電流が変化する? Light source A(以下A) White LED(以下L)
@@ -445,7 +464,7 @@ float GetLux()
 	a /= (correction/100);
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "temp correction\ttemp\t%f\tcorrection\t%.2f%%\n", temp, correction);
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "correction I(uA)\t%f\n", a);
-	
+
 	//A	| 5v 100Lux I(uA)      t 46       | 1uA  2.17Lux
 	//L | 5v 100Lux I(uA) m 15 t 33 M 73  | 1uA  3.03Lux
 	lux = a * 2.17;
@@ -460,7 +479,7 @@ float GetLuxOhm(int ohm)
 	float ad, a, lux;
 	int adc, sleepTime;
 	int lsb;
-	
+
 	//100ms
 	//時間を短くするとなぜかADコンバータがうまく動かず
 	//短くすればするほど高い電圧値が測定される
@@ -476,7 +495,7 @@ float GetLuxOhm(int ohm)
 	DelayMicroSecond(sleepTime);
 	adc = GetAD(ch);
 	ad = AtoDmV(adc, lsb);
-	
+
 	GPIO_CLR(pin);
 	//100ms
 	DelayMicroSecond(sleepTime/100);
@@ -489,7 +508,7 @@ float GetLuxOhm(int ohm)
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "adc\tad\tI(A)\tI(uA)\n");
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "%d\t%f\t%f\t%f\n", adc, ad, a, a*1e+6);
 	a *= 1e+6;
-	
+
 	//温度補正
 	float temp, correction;
 	if( g_temp == 0 )
@@ -685,4 +704,27 @@ float GetTemp()
 	SensorLogPrintf(SENSOR_LOG_LEVEL_1, "    temp     :  %.1f\n", temp);
 
 	return temp;
+}
+
+#define CORE_TEMP_BUF	10
+float GetCoreTemp()
+{
+	// /opt/vc/bin/vcgencmd measure_temp
+	// /sys/class/thermal/thermal_zone0/temp
+	FILE *coreTempFile;
+	char buf[CORE_TEMP_BUF];
+	//float coreTemp;
+
+
+	coreTempFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
+	if( coreTempFile == NULL )
+		return -1;
+
+	fread(buf, sizeof(buf)*sizeof(char), sizeof(buf), coreTempFile);
+
+	//coreTemp = (float)( atoi(buf)/1000.0f );
+	//printf("%f\n", coreTemp);
+
+	//return atoi(buf);
+	return (float)( atoi(buf)/1000.0f );
 }
