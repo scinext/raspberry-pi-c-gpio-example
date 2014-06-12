@@ -44,16 +44,19 @@ int		g_debugOpt;
 int		g_outputMode;
 
 //ロガー用
-float	g_press;
-float	g_temp;
-float	g_hum;
-float	g_lux;
+float	g_press		= INIT_SENSOR;
+float	g_temp		= INIT_SENSOR;
+float	g_hum		= INIT_SENSOR;
+float	g_lux		= INIT_SENSOR;
+float	g_coreTemp	= INIT_SENSOR;
 ////ログ収集間隔(秒数)
 //int		g_logInterval = LOG_INTERVAL_DEF;
 //データ収取間隔(秒数)
 int		g_dataInterval = LOG_INTERVAL_DEF;//DATA_INTERVAL_DEF;
 //int		g_dataStatus;
 //int		g_oldDataStatus;
+//次のログまでの時間(s)
+struct timespec	g_waitLog;
 
 void Dprintf(const char *str, ...)
 {
@@ -319,17 +322,21 @@ int main(int argc, char *argv[])
 	if( argc <= 1 )
 	{
 	}
-	while( (opt = getopt(argc, argv, "HDqrcydptlha:m:o:i:f:I:")) != -1 )
+	while( (opt = getopt(argc, argv, "HDqrcydptlhTwa:m:o:i:f:I:")) != -1 )
 	{
 		switch( opt )
 		{
 			case 'H':
 				printf("-c 時計                    -y 年(+和暦)           -d 日付\n");
 				printf("-p 大気圧                  -t 温度                -l 照度                -h 湿度\n");
+				printf("-T CPU温度                 -w ログ取得までの時間\n");
+				printf("\n");
 				printf("-a XX アニメーションXX     -m XX XXモードの表示   -o XXXX XXXXを7segに表示(できれば)\n");
 				printf("-i XX データ収集の間隔(s)\n");
 				//printf("-I XX データ収集の間隔(s)  -i XX ログをとる間隔(s)\n");
+				printf("\n");
 				printf("-H これ                    -q 終了                -r プロセスをリセット\n");
+				printf("\n");
 				printf("-D デバッグ                -f XX ログやデバッグ時の情報の細かさ 0 or それ以外1\n");
 				return 0;
 			case 'D':
@@ -343,6 +350,15 @@ int main(int argc, char *argv[])
 				outLevel =  atoi(optarg);
 				MySysLog(LOG_DEBUG, "output level %d\n", outLevel);
 				break;
+			case 'c':
+				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_CLOCK);
+				break;
+			case 'y':
+				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_YEAR);
+				break;
+			case 'd':
+				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_DATE);
+				break;
 			case 'p':
 				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_PRESS);
 				break;
@@ -355,14 +371,11 @@ int main(int argc, char *argv[])
 			case 'l':
 				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_LUX);
 				break;
-			case 'd':
-				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_DATE);
+			case 'T':
+				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_CORE_TEMP);
 				break;
-			case 'y':
-				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_YEAR);
-				break;
-			case 'c':
-				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_CLOCK);
+			case 'w':
+				sprintf(buf, MSG_QUEUE_MODE_PREFIX"%02d", MODE_WAIT_LOG);
 				break;
 			case 'a':
 				tmp = atoi(optarg);

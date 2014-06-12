@@ -26,6 +26,9 @@ extern float	g_press;
 extern float	g_temp;
 extern float	g_hum;
 extern float	g_lux;
+extern float	g_coreTemp;
+extern int		g_dataInterval;
+extern struct timespec	g_waitLog;
 
 //古いモード
 int g_oldMode;
@@ -44,28 +47,34 @@ int DispModeName(int mode)
 	switch(mode)
 	{
 		case MODE_PRESS:
-			MySysLog(LOG_DEBUG, "  mode : pressure    [ID - %x]\n", mode);
+			MySysLog(LOG_DEBUG, "  mode : pressure [ID - %x]\n", mode);
 			break;
 		case MODE_TEMP:
 			MySysLog(LOG_DEBUG, "  mode : temperature [ID - %x]\n", mode);
 			break;
 		case MODE_LUX:
-			MySysLog(LOG_DEBUG, "  mode : Lux         [ID - %x]\n", mode);
+			MySysLog(LOG_DEBUG, "  mode : Lux [ID - %x]\n", mode);
 			break;
 		case MODE_HUMIDITY:
-			MySysLog(LOG_DEBUG, "  mode : humidity    [ID - %x]\n", mode);
+			MySysLog(LOG_DEBUG, "  mode : humidity [ID - %x]\n", mode);
+			break;
+		case MODE_CORE_TEMP:
+			MySysLog(LOG_DEBUG, "  mode : core temperature [ID - %x]\n", mode);
 			break;
 		case MODE_QUIT:
 			MySysLog(LOG_DEBUG, "  quit\n");
 			break;
 		case MODE_YEAR:
-			MySysLog(LOG_DEBUG, "  mode : year        [ID - %x]\n", mode);
+			MySysLog(LOG_DEBUG, "  mode : year [ID - %x]\n", mode);
 			break;
 		case MODE_DATE:
-			MySysLog(LOG_DEBUG, "  mode : date        [ID - %x]\n", mode);
+			MySysLog(LOG_DEBUG, "  mode : date [ID - %x]\n", mode);
+			break;
+		case MODE_WAIT_LOG:
+			MySysLog(LOG_DEBUG, "  mode : wait log time [ID - %x]\n", mode);
 			break;
 		case MODE_CLOCK:
-			MySysLog(LOG_DEBUG, "  mode : clock       [ID - %x]\n", mode);
+			MySysLog(LOG_DEBUG, "  mode : clock [ID - %x]\n", mode);
 			break;
 		case MODE_ANI_0:
 		case MODE_ANI_1:
@@ -73,7 +82,7 @@ int DispModeName(int mode)
 			MySysLog(LOG_DEBUG, "  mode : ANIMATION %d [ID - %x]\n", mode - MODE_ANI_0, mode);
 			break;
 		default:
-			MySysLog(LOG_DEBUG, "  mode : default     [ID - %x]\n", mode);
+			MySysLog(LOG_DEBUG, "  mode : default [ID - %x]\n", mode);
 			return -1;
 	}
 }
@@ -119,6 +128,9 @@ void DispModeData(int mode)
 		case MODE_HUMIDITY:
 			HumMode(init);
 			break;
+		case MODE_CORE_TEMP:
+			CoreTemp(init);
+			break;
 		case MODE_QUIT:
 			break;
 		case MODE_YEAR:
@@ -126,6 +138,9 @@ void DispModeData(int mode)
 			break;
 		case MODE_DATE:
 			DateMode(init);
+			break;
+		case MODE_WAIT_LOG:
+			WaitLogTime(init);
 			break;
 		case MODE_OUTPUT:
 			break;
@@ -209,6 +224,9 @@ void ReverseInsert(char *buf)
 			case 'Y': g_dispData[i] = SEG_ALPHA_Y;	break;
 			case 'z':
 			case 'Z': g_dispData[i] = SEG_ALPHA_Z;	break;
+			//記号
+			case '-': g_dispData[i] = SEG_SYMBOL_HYPHEN;	break;
+			case '_': g_dispData[i] = SEG_SYMBOL_UNDER_BAR;	break;
 			default: g_dispData[i] = 0;
 		}
 		g_dispData[i] |= (DIGIT_1>>i);
@@ -220,14 +238,14 @@ void BlinkDp(int digit, int blinkInterval)
 {
 	static char blinkDpToggle;
 	static int old_loopCounter;
-	
+
 	if( old_loopCounter != g_loopCounter)
 	{
 		old_loopCounter = g_loopCounter;
 		if( (g_loopCounter % blinkInterval) == 0)
 			blinkDpToggle ^= 0x1;
 	}
-	
+
 	if( (blinkDpToggle & 0x1) == 1 )
 		g_dispData[digit] |= SEG_DP;
 	else
@@ -242,8 +260,16 @@ void DispWait()
 void PressMode(int init)
 {
 	static float oldPress;
-
-	if( g_press == 0 )
+	
+	//1000オーバーは一つの関数で初期化されMODE_START状態になるのを利用
+	if( g_loopCounter > MODE_NAME )
+	{
+		snprintf(g_segBuf, sizeof(g_segBuf), "Pres");
+		ReverseInsert(g_segBuf);
+		return;
+	}
+	
+	if( g_press == INIT_SENSOR )
 	{
 		//g_press = GetPress();
 		DispWait();
@@ -256,29 +282,21 @@ void PressMode(int init)
 			snprintf(g_segBuf, sizeof(g_segBuf), "%4d", (int)(g_press*10));
 		else
 			snprintf(g_segBuf, sizeof(g_segBuf), "%4d", (int)g_press );
-		
+
 		ReverseInsert(g_segBuf);
-		
+
 		oldPress = g_press;
 	}
+
+	if( g_press < 1000 )
+		BlinkDp(1, CLOCK_DP_BLINK);
 	
-	//1000オーバーは一つの関数で初期化されMODE_START状態になるのを利用
-	if( g_loopCounter < MODE_NAME )
-	{
-		if( g_press < 1000 )
-			BlinkDp(1, CLOCK_DP_BLINK);
-	}
-	else
-	{
-		snprintf(g_segBuf, sizeof(g_segBuf), "Pres");
-		ReverseInsert(g_segBuf);
-	}
 }
 void TempMode(int init)
 {
 	static float oldTemp;
 
-	if( g_temp == 0 )
+	if( g_temp == INIT_SENSOR )
 	{
 		//g_temp = GetTemp();
 		DispWait();
@@ -289,7 +307,7 @@ void TempMode(int init)
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "%3dC", (int)(g_temp*10));
 		ReverseInsert(g_segBuf);
-		
+
 		oldTemp = g_temp;
 	}
 
@@ -300,7 +318,14 @@ void LuxMode(int init)
 	static float oldLux;
 	static int dpDigit;
 
-	if( g_lux == 0 )
+	if( g_loopCounter > MODE_NAME )
+	{
+		snprintf(g_segBuf, sizeof(g_segBuf), "Lux");
+		ReverseInsert(g_segBuf);
+		return;
+	}
+	
+	if( g_lux == INIT_SENSOR )
 	{
 		DispWait();
 		return;
@@ -333,52 +358,69 @@ void LuxMode(int init)
 			dpDigit = 1;
 		}
 		ReverseInsert(g_segBuf);
-		
+
 		oldLux = g_lux;
 	}
-
-	if( g_loopCounter < MODE_NAME )
-	{
-		if( g_lux < 1000 )
-			BlinkDp(dpDigit, CLOCK_DP_BLINK);
-	}
-	else
-	{
-		snprintf(g_segBuf, sizeof(g_segBuf), "Lux");
-		ReverseInsert(g_segBuf);
-	}
+	if( g_lux < 1000 )
+		BlinkDp(dpDigit, CLOCK_DP_BLINK);
 
 }
 void HumMode(int init)
 {
 	static float oldHum;
 
-	if( g_hum == 0 )
+	if( g_loopCounter > MODE_NAME )
+	{
+		snprintf(g_segBuf, sizeof(g_segBuf), "Hum");
+		ReverseInsert(g_segBuf);
+		return;
+	}
+	
+	if( g_hum == INIT_SENSOR )
 	{
 		//g_hum = GetHumidity();
 		DispWait();
 		return;
 	}
-
+	
 	if( oldHum != g_hum || init == MODE_START)
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "%4d", (int)(g_hum*10));
 		ReverseInsert(g_segBuf);
-		
+
 		oldHum == g_hum;
 	}
-	
-	if( g_loopCounter < MODE_NAME )
-	{
-		BlinkDp(1, CLOCK_DP_BLINK);
-	}
-	else
-	{
-		snprintf(g_segBuf, sizeof(g_segBuf), "Hum");
-		ReverseInsert(g_segBuf);
-	}
+	BlinkDp(1, CLOCK_DP_BLINK);
+
 
 }
+void CoreTemp(int init)
+{
+	static float oldCoreTemp;
+
+	if( g_loopCounter > MODE_NAME )
+	{
+		snprintf(g_segBuf, sizeof(g_segBuf), "Ctmp");
+		ReverseInsert(g_segBuf);
+		return;
+	}
+	
+	if( g_coreTemp == INIT_SENSOR )
+	{
+		DispWait();
+		return;
+	}
+	
+	if( oldCoreTemp != g_coreTemp || init == MODE_START)
+	{
+		snprintf(g_segBuf, sizeof(g_segBuf), "%3dC", (int)(g_coreTemp*10));
+		ReverseInsert(g_segBuf);
+
+		oldCoreTemp = g_coreTemp;
+	}
+	BlinkDp(2, CLOCK_DP_BLINK);
+}
+
 void YearMode(int init)
 {
 	if( g_ts == 0 )
@@ -410,51 +452,51 @@ void DateMode(int init)
 {
 	static int month, day;
 
+	if( g_loopCounter > MODE_NAME )
+	{
+		snprintf(g_segBuf, sizeof(g_segBuf), "Date");
+		ReverseInsert(g_segBuf);
+		return;
+	}
+	
 	if( g_ts == 0 || init == MODE_START)
 	{
 		time_t t;
 		t = time(NULL);
 		g_ts = localtime(&t);
-		
+
 		strftime(g_segBuf, sizeof(g_segBuf), "%m", g_ts);
 		month = atoi(g_segBuf);
-		
+
 		strftime(g_segBuf, sizeof(g_segBuf), "%d", g_ts);
 		day	= atoi(g_segBuf);
-		
-		snprintf(g_segBuf, sizeof(g_segBuf), "%2d%2d", month, day);
-	}
 
-	if( g_loopCounter < MODE_NAME )
-	{	
-		//static int dpDigit = SEG_COUNT;
-		int i;
-		ReverseInsert(g_segBuf);
+		snprintf(g_segBuf, sizeof(g_segBuf), "%2d%2d", month, day);
 		
-		////すべてのDPを点滅させる
-		//for(i=0; i<SEG_COUNT; i++)
-		//	BlinkDp(i, CLOCK_DP_BLINK);
-		
-		//月と日の部分を点滅
-		BlinkDp(0, CLOCK_DP_BLINK);
-		BlinkDp(2, CLOCK_DP_BLINK);
-		
-		//左から右へ移動
-		//g_dispData[dpDigit] |= SEG_DP;
-		//
-		//if( g_loopCounter % CLOCK_DP_BLINK == 0 )
-		//{	
-		//	if( dpDigit <= 0 ) 
-		//		dpDigit = SEG_COUNT;
-		//	else
-		//		--dpDigit;
-		//}
-	}
-	else
-	{
-		snprintf(g_segBuf, sizeof(g_segBuf), "Date");
 		ReverseInsert(g_segBuf);
 	}
+	
+	//static int dpDigit = SEG_COUNT;
+	//int i;
+	
+	//月と日の部分を点滅
+	BlinkDp(0, CLOCK_DP_BLINK);
+	BlinkDp(2, CLOCK_DP_BLINK);
+	
+	////すべてのDPを点滅させる
+	//for(i=0; i<SEG_COUNT; i++)
+	//	BlinkDp(i, CLOCK_DP_BLINK);
+
+	//左から右へ移動
+	//g_dispData[dpDigit] |= SEG_DP;
+	//
+	//if( g_loopCounter % CLOCK_DP_BLINK == 0 )
+	//{
+	//	if( dpDigit <= 0 )
+	//		dpDigit = SEG_COUNT;
+	//	else
+	//		--dpDigit;
+	//}
 }
 void ClockMode(int init)
 {
@@ -472,12 +514,72 @@ void ClockMode(int init)
 
 	oldT = t;
 	g_ts = localtime(&t);
-	
+
 	strftime(g_segBuf, sizeof(g_segBuf), "%k%M", g_ts);
 
 	ReverseInsert(g_segBuf);
 }
 
+#define N_TO_NANO			1e+9
+#define NANO_TO_100MILLI	1e+8	//1000[n]*1000[u]*100[milli]
+void WaitLogTime(int init)
+{
+	static unsigned long oldElapsedTime;
+	struct timespec nTime;
+	unsigned long sDiff, mDiff;
+	unsigned long elapsedTime;
+	long waitTime;
+
+	//まだ1回目のログを取得してない場合
+	if( g_waitLog.tv_sec == 0 )
+	{
+		DispWait();
+		return;
+	}
+
+	//状態名の表示
+	if( g_loopCounter > MODE_NAME )
+	{
+		snprintf(g_segBuf, sizeof(g_segBuf), "next");
+		ReverseInsert(g_segBuf);
+		return;
+	}
+
+	//開始
+	clock_gettime(CLOCK_MONOTONIC, &nTime);
+
+	if( nTime.tv_nsec >= g_waitLog.tv_nsec )
+	{
+		sDiff = nTime.tv_sec - g_waitLog.tv_sec;
+		mDiff = ( nTime.tv_nsec - g_waitLog.tv_nsec ) /NANO_TO_100MILLI;
+	}
+	else
+	{
+		sDiff = nTime.tv_sec - 1 - g_waitLog.tv_sec;
+		mDiff = ( (unsigned long)N_TO_NANO - g_waitLog.tv_nsec + nTime.tv_nsec ) /NANO_TO_100MILLI;
+	}
+	//printf("sec %lu . milli %lu \t", g_waitLog.tv_sec, g_waitLog.tv_nsec);
+	//printf("sec %lu . milli %lu \t", nTime.tv_sec, nTime.tv_nsec);
+	//printf("sec %lu . %lu *100milli\n", sTimeDiff, mTimeDiff);
+
+	elapsedTime = sDiff*10 + mDiff;
+	if( oldElapsedTime != elapsedTime )
+	{
+		waitTime = g_dataInterval*10 - elapsedTime;
+		//printf("wait time %d\n", waitTime);
+		if( waitTime <= 0 )
+		{
+			DispWait();
+			return;
+		}
+
+		snprintf(g_segBuf, sizeof(g_segBuf), "%4d", waitTime);
+		ReverseInsert(g_segBuf);
+		oldElapsedTime = elapsedTime;
+	}
+	if( waitTime < 1000 )
+		g_dispData[1] |= SEG_DP;
+}
 
 
 /*
@@ -562,7 +664,7 @@ void AnimationMode(int mode)
 				}
 				if( animationCounter >= ARRAY_SIZE(ani1) )
 					animationCounter = 0;
-					
+
 				//BoundSpeed(2500, 7000, 5);
 				usleep(g_aniSpeed);
 			}
@@ -573,7 +675,7 @@ void AnimationMode(int mode)
 				SendShiftRegister( ani0[g_loopCounter++] );
 				if( g_loopCounter >= sizeof(ani0)/sizeof(ani0[0]) )
 					g_loopCounter = 0;
-					
+
 				//BoundSpeed(30000, 100000, 800);
 				usleep(g_aniSpeed);
 			}
@@ -585,10 +687,10 @@ void BoundSpeed(int min, int max, int inc)
 	static int incToggle = 1;
 	if( g_aniSpeed <= min && incToggle != 1 )
 		incToggle = 1;
-		
+
 	if( g_aniSpeed >= max && incToggle != -1 )
 		incToggle = -1;
-		
+
 	g_aniSpeed += incToggle * inc;
 	//printf("toggle %d  speed %d\n", incToggle, g_aniSpeed);
 }
