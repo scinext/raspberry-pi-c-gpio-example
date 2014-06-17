@@ -14,7 +14,7 @@
 
 //型を何もつけないとintになるっぽいsizeofが4でintと同じだった
 #ifdef DEF_GPIO
-	#define EXTERN 
+	#define EXTERN
 #else
 	#define EXTERN extern
 #endif
@@ -24,26 +24,26 @@ EXTERN volatile unsigned int *gpio;
 
 #define BCM2708_PERI_BASE 0x20000000 //0x2000 0000 ->0x7E00 0000になる
 #define GPIO_BASE		( BCM2708_PERI_BASE + 0x00200000)	//0x7E20 0000
-#define GPIO_SET_0		0x001C/sizeof(uint32_t)				//0x7E20 001C	GPIO Pin Output Set 
-#define GPIO_SET_1		0x0020/sizeof(uint32_t)				//0x7E20 0020	
+#define GPIO_SET_0		0x001C/sizeof(uint32_t)				//0x7E20 001C	GPIO Pin Output Set
+#define GPIO_SET_1		0x0020/sizeof(uint32_t)				//0x7E20 0020
 #define GPIO_CLR_0		0x0028/sizeof(uint32_t)				//0x7E20 0028	GPIO Pin Output Clear
-#define GPIO_CLR_1		0x002C/sizeof(uint32_t)				//0x7E20 002C	
+#define GPIO_CLR_1		0x002C/sizeof(uint32_t)				//0x7E20 002C
 #define GPIO_LEV_0		0x0034/sizeof(uint32_t)				//0x7E20 0034	GPIO Pin Level
-#define GPIO_LEV_1		0x0038/sizeof(uint32_t)				//0x7E20 0038	
+#define GPIO_LEV_1		0x0038/sizeof(uint32_t)				//0x7E20 0038
 #define GPIO_EDS_0		0x0040/sizeof(uint32_t)				//0x7E20 0040	GPIO Pin Event Detect Status
-#define GPIO_EDS_1		0x0044/sizeof(uint32_t)				//0x7E20 0044	
+#define GPIO_EDS_1		0x0044/sizeof(uint32_t)				//0x7E20 0044
 #define GPIO_REN_0		0x004C/sizeof(uint32_t)				//0x7E20 004C	GPIO Pin Rising Edge Detect Enable
-#define GPIO_REN_1		0x0050/sizeof(uint32_t)				//0x7E20 0050	
+#define GPIO_REN_1		0x0050/sizeof(uint32_t)				//0x7E20 0050
 #define GPIO_FEN_0		0x0058/sizeof(uint32_t)				//0x7E20 0058	GPIO Pin Falling Edge Detect Enable
-#define GPIO_FEN_1		0x005C/sizeof(uint32_t)				//0x7E20 005C	
+#define GPIO_FEN_1		0x005C/sizeof(uint32_t)				//0x7E20 005C
 #define GPIO_HEN_0		0x0064/sizeof(uint32_t)				//0x7E20 0064	GPIO Pin High Detect Enable
-#define GPIO_HEN_1		0x0068/sizeof(uint32_t)				//0x7E20 0068	
+#define GPIO_HEN_1		0x0068/sizeof(uint32_t)				//0x7E20 0068
 #define GPIO_LEN_0		0x0070/sizeof(uint32_t)				//0x7E20 0070	GPIO Pin Low Detect Enable
-#define GPIO_LEN_1		0x0074/sizeof(uint32_t)				//0x7E20 0074	
+#define GPIO_LEN_1		0x0074/sizeof(uint32_t)				//0x7E20 0074
 #define GPIO_AREN_0		0x007C/sizeof(uint32_t)				//0x7E20 007C	GPIO Pin Async. Rising Edge Detect
-#define GPIO_AREN_1		0x0080/sizeof(uint32_t)				//0x7E20 0080	
+#define GPIO_AREN_1		0x0080/sizeof(uint32_t)				//0x7E20 0080
 #define GPIO_AFEN_0		0x0088/sizeof(uint32_t)				//0x7E20 0088	GPIO Pin Async. Falling Edge Detect
-#define GPIO_AFEN_1		0x008C/sizeof(uint32_t)				//0x7E20 008C	
+#define GPIO_AFEN_1		0x008C/sizeof(uint32_t)				//0x7E20 008C
 #define GPIO_PUD		0x0094/sizeof(uint32_t)				//0x7E20 0094	GPIO Pin Pull-up/down Enable
 #define GPIO_PUD_CLK_0	0x0098/sizeof(uint32_t)				//0x7E20 0098	GPIO Pin Pull-up/down Enable Clock 0
 #define GPIO_PUD_CLK_1	0x009C/sizeof(uint32_t)				//0x7E20 009C	GPIO Pin Pull-up/down Enable Clock 1
@@ -74,6 +74,9 @@ typedef enum _RpiRevision{
 	REV_2=2
 }RpiRevision;
 
+//RpiのGPIOのPin数 0～53の54個のGPIOがある
+#define GPIO_PIN_COUNT	54
+
 //指定pin以外に1を立て、指定pinを0にしてANDをして初期化する
 //#define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
 //#define IN_GPIO(g) *(gpio+((g)/10)) &= ~( 0x07<<( 3 * ((g)%10) ) )
@@ -84,26 +87,78 @@ typedef enum _RpiRevision{
 //初期化したpinに1を立ててoutputにする
 //#define OUT_GPIO(g) *(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
 #define OUT_GPIO(g) *(gpio+((g)/10)) |=  ( 0x01<<( ((g)%10) * 3 ) )
-
 //初期化後(0クリア)にALTのフラグを立てる
 #define ALT_GPIO(g, alt) *(gpio+((g)/10)) |=  ( alt<<( 3 * ((g)%10) ) )
 
 
-////0x20001C	gpio(0x200000) + 0x1C(sizeof(int)*7)
-//#define GPIO_SET(pin) *(gpio+7) = 1<<pin
-//#define GPIO_SETo32(pin) *(gpio+8) = 1<<(pin-32)
-#define GPIO_SET(pin) *(gpio+GPIO_SET_0) = 1<<(pin)
+//GPIOのPINを上げる
+#define GPIO_SET(pin)	 *(gpio+GPIO_SET_0) = 1<<(pin)
 #define GPIO_SETo32(pin) *(gpio+GPIO_SET_1) = 1<<((pin)-32)
-
-////0x20001C	gpio(0x200000) + 0x1C(sizeof(int)*7)
-//#define GPIO_CLR(pin) *(gpio+10) = 1<<pin
-//#define GPIO_CLRo32(pin) *(gpio+11) = 1<<(pin-32)
-#define GPIO_CLR(pin) *(gpio+GPIO_CLR_0) = 1<<(pin)
+//GPIOのPINを下げる
+#define GPIO_CLR(pin)	 *(gpio+GPIO_CLR_0) = 1<<(pin)
 #define GPIO_CLRo32(pin) *(gpio+GPIO_CLR_1) = 1<<((pin)-32)
 
+//GPIOのHIGH,LOW取得
+#define GPIO_GET(pin)	 ( *(gpio+GPIO_LEV_0)>>(pin) ) & 0x01
+#define GPIO_GETo32(pin) ( *(gpio+GPIO_LEV_1)>>(pin) ) & 0x01
 
-#define GPIO_GET(pin) (*(gpio+GPIO_LEV_0) >> (pin)) & 0x01
-#define GPIO_GETo32(pin) (*(gpio+GPIO_LEV_1) >> (pin)) & 0x01
+
+//Interrupt
+/*
+ *  GPIO Pin Event Detect Status 取得のみ
+ *  	GPIO_EDS_0
+ *  	GPIO_EDS_1
+ *  GPIO Pin Rising Edge Detect Enable
+ *  	GPIO_REN_0
+ *  	GPIO_REN_1
+ *  GPIO Pin Falling Edge Detect Enable
+ *  	GPIO_FEN_0
+ *  	GPIO_FEN_1
+ *  GPIO Pin High Detect Enable
+ *  	GPIO_HEN_0
+ *  	GPIO_HEN_1
+ *  GPIO Pin Low Detect Enable
+ *  	GPIO_LEN_0
+ *  	GPIO_LEN_1
+ *  GPIO Pin Async. Rising Edge Detect
+ *  	GPIO_AREN_0
+ *  	GPIO_AREN_1
+ *  GPIO Pin Async. Falling Edge D
+ *  	GPIO_AFEN_0
+ *  	GPIO_AFEN_1
+ */
+#define REGISTER_INTERRUPT_FAIL				 -1
+#define REGISTER_INTERRUPT_EXPORT_FAIL		 -2
+#define REGISTER_INTERRUPT_DIRECT_FAIL		 -3
+#define REGISTER_INTERRUPT_EDGE_FAIL		 -4
+#define REGISTER_INTERRUPT_VALUE_FAIL		 -5
+#define REGISTER_INTERRUPT_EPOLL_CREATE_FAIL -6
+#define REGISTER_INTERRUPT_EPOLL_CTL_FAIL	 -7
+#define REGISTER_INTERRUPT_SUCCESS			 1
+
+#define SYS_GPIO		"/sys/class/gpio/"
+#define EDGE_TYPE_BOTH	0
+#define EDGE_TYPE_RISE	1
+#define EDGE_TYPE_FALL	2
+
+typedef int (*GpioInterruptCallback)(int pin, int value);
+#define INTERRUPT_CONTINUE	1
+#define INTERRUPT_END		-1
+struct GpioInterrupt{
+	int	  fd[GPIO_PIN_COUNT];
+	GpioInterruptCallback callback;
+};
+
+void GpioInterruptStart();
+void GpioInterruptEnd();
+void GpioInerruptUnInit();
+
+void RegisterInterruptCallback(GpioInterruptCallback callback);
+int WriteSysGpio(char *path, char *writeData);
+int RegisterInterruptPin(int pin, int upDown, int edgeType);
+void* InterruptThread(void *param);
+
+
 
 //とりあえず下記はrev2
 
@@ -195,4 +250,4 @@ unsigned int GetRegisterBit(volatile unsigned int *reg, unsigned int bit, unsign
 unsigned int GetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, unsigned int useBit);
 
 int InitPads();
-#endif     
+#endif

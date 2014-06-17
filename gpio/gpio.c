@@ -13,6 +13,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
 //open
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -26,6 +28,11 @@
 #include "gpio.h"
 char *gpio_map;
 
+//inturruptを使いたかったがカーネルモジュールじゃないとできなく
+//raspberryはlinux-headersの取得が面倒なのでなし、linuxのデバイスドライバを使うように
+//#include <linux/interrupt.h>
+//#include <poll.h>
+#include <sys/epoll.h> 
 
 #include "gpio-timer.h"
 
@@ -220,6 +227,222 @@ unsigned int GetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, u
 	return tmp;
 }
 
+//Interrupt
+struct GpioInterrupt	gpioInterrupt;
+int 					epollFd;
+pthread_t				interruptThreadId;
+void GpioInterruptStart()
+{
+	pthread_create(&interruptThreadId, NULL, InterruptThread, (void *)NULL);
+}
+void GpioInterruptEnd()
+{
+	pthread_cancel(interruptThreadId);
+	
+	GpioInerruptUnInit();
+}
+void GpioInerruptUnInit()
+{
+	int  i, fd;
+	char pinStr[10];
+	
+	//開いているファイルディスクリプタをすべて閉じてからGPIOをunexportする
+	for(i=0; i<GPIO_PIN_COUNT; i++)
+	{
+		if( gpioInterrupt.fd[i] != 0 )
+		{
+			//printf("close file discript\n");
+			
+			//ファイルディスクリプタを閉じる
+			close( gpioInterrupt.fd[i] );
+			
+			//gpioをunexport
+			sprintf(pinStr, "%d", i);
+			if( WriteSysGpio(SYS_GPIO "unexport", pinStr) == -1 )
+				perror("open unexport");
+				
+			//全てのpinをINでpull_noneにする
+			InitPin(i, PIN_IN);
+			PullUpDown(i, PULL_NONE);
+		}
+	}
+	
+	//epollファイルディスクリプタを閉じる
+	if( epollFd != -1 )
+		close(epollFd);
+}
+
+void RegisterInterruptCallback(GpioInterruptCallback callback)
+{
+	gpioInterrupt.callback = callback;
+}
+
+int WriteSysGpio(char *path, char *writeData)
+{
+	int fd;
+	//使用するgpioのpinの作成 echo Pin > /sys/class/gpio/export
+	fd = open(path, O_WRONLY);
+	if( fd == -1 )
+	{
+		perror(path);
+		return -1;
+	}
+	write(fd, writeData, strlen(writeData));
+	close(fd);
+	
+	return 1;
+}
+int RegisterInterruptPin(int pin, int upDown, int edgeType)
+{
+	int  fd;
+	char value;
+	char sysfsPath[100];
+	char buf[20];
+	struct epoll_event ev;
+	
+	InitPin(pin, PIN_IN);
+	PullUpDown(pin, upDown);
+	
+	//linuxのデバイスドライバを使う レジスタを使うと割り込みが取得できない
+	//http://vintagechips.wordpress.com/2013/09/09/linuxの流儀でgpioを監視する/
+	
+	//SetRegisterBitDebug(gpio+GPIO_REN_0, pin, 1, 1);
+	//SetRegisterBitDebug(gpio+GPIO_FEN_0, pin, 1, 1);
+	//SetRegisterBitDebug(gpio+GPIO_REN_0, pin, 1, 0);
+	//SetRegisterBitDebug(gpio+GPIO_FEN_0, pin, 1, 0);
+	
+	//epollファイルディスクリプタの作成
+	//epoll_create(int size) Linux 2.6.8でsizeは無視されるが0以上でないとエラー
+	epollFd = epoll_create(1);
+	if( epollFd == -1 )
+	{
+		perror("epoll_create");
+		return REGISTER_INTERRUPT_EPOLL_CREATE_FAIL;
+	}
+	
+	
+	//使用するgpioのpinの作成 echo Pin > /sys/class/gpio/export
+	sprintf(buf, "%d", pin);
+	if( WriteSysGpio(SYS_GPIO "export", buf) == -1 )
+	{
+		perror("open export");
+		return REGISTER_INTERRUPT_EXPORT_FAIL;
+	}
+	
+	
+	//pinのモード echo 'in' > /sys/class/gpio/gpio[Pin]/direction
+	sprintf(sysfsPath, SYS_GPIO "gpio%d/direction", pin);
+	if( WriteSysGpio(sysfsPath, "in") == -1 )
+	{
+		perror("open direction");
+		return REGISTER_INTERRUPT_DIRECT_FAIL;
+	}
+	
+	
+	//検出モード echo edgeType > /sys/class/gpio/gpio[Pin]/edge
+	switch(edgeType)
+	{
+		case EDGE_TYPE_RISE:
+			strcpy(buf, "rising");
+			break;
+		case EDGE_TYPE_FALL:
+			strcpy(buf, "falling");
+			break;
+		case EDGE_TYPE_BOTH:
+		default:
+			strcpy(buf, "both");
+			break;
+	}
+	sprintf(sysfsPath, SYS_GPIO "gpio%d/edge", pin);
+	if( WriteSysGpio(sysfsPath, buf) == -1 )
+	{
+		perror("open edge");
+		return REGISTER_INTERRUPT_EDGE_FAIL;
+	}
+	
+	
+	//値 echo /sys/class/gpio/gpio[Pin]/value
+	sprintf(sysfsPath, SYS_GPIO "gpio%d/value", pin);
+	gpioInterrupt.fd[pin] = open(sysfsPath, O_RDONLY);
+	if(gpioInterrupt.fd[pin] == -1 )
+	{
+		perror("open value");
+		return REGISTER_INTERRUPT_VALUE_FAIL;
+	}
+	//読み込みが必要なイベントの発行をさせるために一度読み込む
+	read(gpioInterrupt.fd[pin], &value, sizeof(char));
+	//printf("pin:%d  fd:%d\n", pin, gpioInterrupt.fd[pin]);
+	
+	
+	//event設定
+	ev.events = EPOLLPRI; //操作が可能な緊急 (urgent) データがある。
+	ev.data.fd = gpioInterrupt.fd[pin];
+	//epollFdをコントロールへ登録
+	if( epoll_ctl(epollFd, EPOLL_CTL_ADD, gpioInterrupt.fd[pin], &ev) == -1 )
+	{
+		perror("epoll_ctl");
+		close(gpioInterrupt.fd[pin]);
+		return REGISTER_INTERRUPT_EPOLL_CTL_FAIL;
+	}
+	return REGISTER_INTERRUPT_SUCCESS;
+}
+void* InterruptThread(void *param)
+{
+	int i, nfds, n, value, flag;
+	char c;
+	struct epoll_event events[GPIO_PIN_COUNT];
+	
+	flag = 1;
+	while(flag)
+	{
+		//epollはpthread_cancelでキャンセルできる
+		
+		//epoll_waite(ファイルディスクリプタ, 実行されたeventが入る配列, event変数の数, タイムアウト[ms])
+		nfds = epoll_wait(epollFd, events, GPIO_PIN_COUNT, -1);
+		if( nfds == -1 )
+		{
+			perror("epoll_wait");
+			break;
+		}
+		//変更があったファイルディスクリプタの一覧から登録している関数を呼び出す
+		//printf("nfds = %d\n", nfds);
+		for(n=0; n<nfds; n++)
+		{
+			//ファイルシークを先頭にして値を読み込む
+			lseek(events[n].data.fd, 0, SEEK_SET);
+			read(events[n].data.fd, &c, sizeof(char));
+			//ファイルシークを先頭にして値を読み込む
+			//lseek(gpioInterrupt.fd[i], 0, SEEK_SET);
+			//read(gpioInterrupt.fd[i], &c, sizeof(char));
+			
+			//コールバックがない場合はファイルの読込だけして次の書き込みまで再度待ち状態にする
+			if( gpioInterrupt.callback == NULL )
+			{
+				//printf("no register callback\n");
+				continue;
+			}
+			//printf("n=%d  fd=%d \n", n, events[n].data.fd);
+			
+			//epollのイベントが来たファイルディスクリプタのpinを検索、コールバック実行
+			for(i=0; i<GPIO_PIN_COUNT; i++)
+			{
+				if( gpioInterrupt.fd[i] != events[n].data.fd)
+					continue;
+					
+				//読み込み値をintへ
+				value = c-'0';
+				//printf("call pin:%d callback value %d\n", i, value);
+				
+				//コールバック中1つでも戻り値がINTERRUPT_ENDだったらInterrupt終了
+				if( gpioInterrupt.callback(i, value) == INTERRUPT_END )
+					flag = 0;
+				break;
+			}
+		}
+	}
+	GpioInerruptUnInit();
+	pthread_exit(NULL);
+}
 
 char *pads_map = NULL;
 volatile unsigned int *pads = NULL;

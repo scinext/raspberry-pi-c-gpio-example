@@ -109,12 +109,20 @@ void I2c(unsigned int slaveAddress, unsigned int addr, unsigned int data, unsign
 }
 void GpioTest()
 {
-		
+	PrintGpioStatus(gpio);
+	//*touchsensor
+		TouchSensorTest();
+	//*/
+	
+	/*interrupt
+		InterruptTest();
+	//*/
+	
 	/* spi	
 		SpiTest();
 	//*/
 	
-	//*i2c
+	/*i2c
 		I2cTest();
 	//*/
 	
@@ -138,6 +146,7 @@ void GpioTest()
 		SysTimerPrecisionTest();
 		UnInitSysTimer();
 	//*/
+	
 	/* armtimer
 		InitArmTimer(0);
 		ArmTimerPrecisionTest();
@@ -161,6 +170,69 @@ void GpioTest()
 	//*/
 	return;
 }
+
+
+const int touchOutPin = 27;
+const int touchInPin  = 22;
+struct timespec touchStartTs, touchEndTs;
+int TouchSensorInterrupt(int pin, int value)
+{
+	if( pin == touchInPin )
+	{
+		clock_gettime(CLOCK_MONOTONIC, &touchEndTs);
+		GPIO_CLR(touchOutPin);
+		printf("high\n");
+		TimeDiff(&touchStartTs, &touchEndTs, 0);
+	}
+	return INTERRUPT_CONTINUE;
+}
+void TouchSensorTest()
+{
+	InitPin(touchOutPin, PIN_OUT);
+	GPIO_CLR(touchOutPin);
+	
+	RegisterInterruptPin(touchInPin, PULL_DOWN, EDGE_TYPE_RISE);
+	RegisterInterruptCallback(TouchSensorInterrupt);
+	
+	GpioInterruptStart();
+	
+	//1回目 タッチなしの計測
+	clock_gettime(CLOCK_MONOTONIC, &touchStartTs);
+	GPIO_SET(touchOutPin);
+	PrintGpioStatus(gpio);
+	sleep(10);
+	
+	//interruptを終了させる
+	GpioInterruptEnd();
+}
+
+
+int GpioInterruptCallbackFunc(int pin, int value)
+{
+	printf("callback func pin:%d, value:%d\n", pin, value);
+	return INTERRUPT_CONTINUE;
+}
+
+void InterruptTest()
+{
+	//22, 27, 17が空いてる
+	const int pin = 22;
+	
+	RegisterInterruptPin(pin, PULL_UP, EDGE_TYPE_FALL);
+	RegisterInterruptCallback(GpioInterruptCallbackFunc);
+	
+	PrintGpioStatus(gpio);
+	
+	GpioInterruptStart();
+	sleep(10);
+	GpioInterruptEnd();
+	
+	PrintGpioStatus(gpio);
+	
+	
+	return;
+}
+
 void ArmTimerTest()
 {
 	struct timespec startTs, endTs;
