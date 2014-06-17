@@ -314,6 +314,7 @@ void SensorLog()
 
 }
 
+/*
 ////センサからデータを取得
 //void* SensorDataThread(void *param)
 //{
@@ -468,3 +469,4 @@ void SensorLog()
 //	pthread_exit(NULL);
 //}
 //
+// */

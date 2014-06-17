@@ -122,6 +122,7 @@ void SensorLogPrintf(int level, const char *str, ...)
 		va_end(args);
 	}
 }
+
 void Drain(int pin, int ch)
 {
 	////ドレインピンを使用して放電
@@ -167,7 +168,6 @@ void Drain(int pin, int ch)
 	//PrintGpioLevStatus(gpio);
 	return;
 }
-
 void GetLuxTest(int loop, unsigned int sleepTime, unsigned int lsb, int type)
 {
 	const unsigned int pin = 25;
@@ -721,6 +721,8 @@ float GetCoreTemp()
 		return -1;
 
 	fread(buf, sizeof(buf)*sizeof(char), sizeof(buf), coreTempFile);
+	
+	fclose(coreTempFile);
 
 	//coreTemp = (float)( atoi(buf)/1000.0f );
 	//printf("%f\n", coreTemp);
@@ -728,3 +730,4 @@ float GetCoreTemp()
 	//return atoi(buf);
 	return (float)( atoi(buf)/1000.0f );
 }
+

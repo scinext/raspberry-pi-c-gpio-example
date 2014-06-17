@@ -58,6 +58,9 @@ int		g_dataInterval = LOG_INTERVAL_DEF;//DATA_INTERVAL_DEF;
 //次のログまでの時間(s)
 struct timespec	g_waitLog;
 
+//次のモードにするための割り込みボタン
+const int nextModePin = 22;
+
 void Dprintf(const char *str, ...)
 {
 	va_list args;
@@ -85,6 +88,31 @@ void PinUnInit()
 	UnInitLps331();
 	UnInitAD();
 }
+
+
+int GpioInterruptCallbackFunc(int pin, int value)
+{
+	if( pin == nextModePin )
+	{
+		//PULL_UPで行ってるので初期状態が1
+		if( value == 0 )
+		{
+			printf("Interrupt next mode button\n");
+			
+			SendShiftRegister( 0x0000 );
+			if( g_outputMode+1 < MODE_OUTPUT )
+				++g_outputMode;
+			else
+				g_outputMode = MODE_CLOCK;
+		}
+	}
+	else
+	{
+		printf("callback func pin:%d, value:%d\n", pin, value);
+	}
+	return INTERRUPT_CONTINUE;
+}
+
 int MsgDisposition(char *msg)
 {
 	char *msgQueuePrefix;
@@ -148,6 +176,11 @@ void ReciveQueue()
 	//{
 	//	MySysLog(LOG_DEBUG, "no log\n");
 	//}
+	
+	//interrupt
+	//RegisterInterruptPin(nextModePin, PULL_UP, EDGE_TYPE_FALL);
+	//RegisterInterruptCallback(GpioInterruptCallbackFunc);
+	//GpioInterruptStart();
 
 	//メッセージキューでやり取りするメッセージのサイズの取得(設定はできない)
 	mq_getattr(g_mq, &mqAttr);
@@ -163,7 +196,10 @@ void ReciveQueue()
 			break;
 		memset(msg, 0, strlen(msg) );
 	}
-
+	
+	//interruptを終了させる
+	//GpioInterruptEnd();
+	
 	//7segのスレッドを終了させる
 	g_threadStatus = 0;
 
@@ -265,10 +301,7 @@ int UnInitServeRecive(int processStatus)
 	int ret, result;
 	ret = 0;
 
-	if( processStatus == SERVER_PROCESS )
-		MySysLog(LOG_DEBUG, "-----server Uninit\n");
-	else
-		MySysLog(LOG_DEBUG, "-----client Uninit\n");
+	MySysLog(LOG_DEBUG, processStatus==SERVER_PROCESS ? "-----server Uninit\n": "-----client Uninit\n");
 
 	//メッセージキューのクローズと削除
 	ret = mq_close(g_mq);

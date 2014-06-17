@@ -25,4 +25,9 @@ float GetTemp();
 
 float GetCoreTemp();
 
+
+
+
+
+
 #endif
