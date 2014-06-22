@@ -28,6 +28,4 @@ float GetCoreTemp();
 
 
 
-
-
 #endif

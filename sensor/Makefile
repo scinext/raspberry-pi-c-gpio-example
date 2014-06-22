@@ -6,7 +6,7 @@ LDFLAGS =-O3 -lrt -lm
 
 #コンパイルファイル
 MAIN += main.o
-SRC  += adConvert.o sensor.o lps331.o
+SRC  += adConvert.o sensor.o lps331.o touchSensor.o
 GPIO += gpio.o gpio-spi.o gpio-util.o gpio-timer.o gpio-i2c.o gpio-arm-timer.o
 COM_OBJ += $(SRC) $(GPIO)
 

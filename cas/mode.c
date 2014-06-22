@@ -525,7 +525,7 @@ void ClockMode(int init)
 void WaitLogTime(int init)
 {
 	static unsigned long oldElapsedTime;
-	struct timespec nTime;
+	struct timespec nTime, diff;
 	unsigned long sDiff, mDiff;
 	unsigned long elapsedTime;
 	long waitTime;
@@ -547,20 +547,22 @@ void WaitLogTime(int init)
 
 	//開始
 	clock_gettime(CLOCK_MONOTONIC, &nTime);
-
-	if( nTime.tv_nsec >= g_waitLog.tv_nsec )
-	{
-		sDiff = nTime.tv_sec - g_waitLog.tv_sec;
-		mDiff = ( nTime.tv_nsec - g_waitLog.tv_nsec ) /NANO_TO_100MILLI;
-	}
-	else
-	{
-		sDiff = nTime.tv_sec - 1 - g_waitLog.tv_sec;
-		mDiff = ( (unsigned long)N_TO_NANO - g_waitLog.tv_nsec + nTime.tv_nsec ) /NANO_TO_100MILLI;
-	}
+	//if( nTime.tv_nsec >= g_waitLog.tv_nsec )
+	//{
+	//	sDiff = nTime.tv_sec - g_waitLog.tv_sec;
+	//	mDiff = ( nTime.tv_nsec - g_waitLog.tv_nsec ) /NANO_TO_100MILLI;
+	//}
+	//else
+	//{
+	//	sDiff = nTime.tv_sec - 1 - g_waitLog.tv_sec;
+	//	mDiff = ( (unsigned long)N_TO_NANO - g_waitLog.tv_nsec + nTime.tv_nsec ) /NANO_TO_100MILLI;
+	//}
+	TimespecDiff(&g_waitLog, &nTime, &diff);
+	sDiff = diff.tv_sec;
+	mDiff = diff.tv_nsec/NANO_TO_100MILLI;
 	//printf("sec %lu . milli %lu \t", g_waitLog.tv_sec, g_waitLog.tv_nsec);
 	//printf("sec %lu . milli %lu \t", nTime.tv_sec, nTime.tv_nsec);
-	//printf("sec %lu . %lu *100milli\n", sTimeDiff, mTimeDiff);
+	//printf("sec %lu . %lu *100milli\n", sDiff, mDiff);
 
 	elapsedTime = sDiff*10 + mDiff;
 	if( oldElapsedTime != elapsedTime )

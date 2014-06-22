@@ -14,14 +14,19 @@
 #include "adConvert.h"
 #include "sensor.h"
 #include "lps331.h"
+#include "touchSensor.h"
 
-#define MODE_TEMP		0x01
-#define MODE_PRESS		0x02
-#define MODE_HUMIDITY	0x03
-#define MODE_LUX		0x04
-#define MODE_LUX_OHM	0x05
-#define MODE_ALL		0xFFFF
+typedef enum {
+	MODE_TEMP		= 0x01,
+	MODE_PRESS		,
+	MODE_HUMIDITY	,
+	MODE_LUX		,
+	MODE_LUX_OHM	,
+	MODE_TEST		,
+	MODE_ALL		= 0xFFFF
+}Mode;
 
+//基本的に個々のグローバル変数はダミー
 
 //湿度の温度補正用のtemp用
 float	g_temp;
@@ -51,8 +56,9 @@ int main(int argc, char *argv[])
 	 *  -l 照度
 	 *  -L XX 照度(抵抗器使用) XXXXohm
 	 *	-i XX ADC XXch
+	 *	-b テストプログラム
 	 */
-	while( (opt = getopt(argc, argv, "DtphlL:i:")) != -1 )
+	while( (opt = getopt(argc, argv, "DtphlL:i:b")) != -1 )
 	{
 		switch( opt )
 		{
@@ -79,6 +85,9 @@ int main(int argc, char *argv[])
 				mode = MODE_ADC;
 				ch = atoi(optarg);
 				break;
+			case 'b':
+				mode = MODE_TEST;
+				break;
 			default:
 				break;
 		}
@@ -88,7 +97,7 @@ int main(int argc, char *argv[])
 	InitAD();
 	InitLps331();
 	//高分解能(0.1ms)
-	InitArmTimer(1);
+	InitArmTimer(ARM_TIMER_HI_RES);
 	
 	//スレッドを高優先に
 	SetPriority(HIGH_PRIO);
@@ -123,6 +132,9 @@ int main(int argc, char *argv[])
 			else
 				fprintf(stderr, "ADC %d ch?\n", ch);
 			break;
+		case MODE_TEST:
+			TestProgram();
+			break;
 		default:
 			printf("mode select t-Temp, p-Press, h-Humidity, l-Lux(condenser) L-(ohm) i-(ADC ch) DtphlL:i:\n");
 			break;
@@ -139,3 +151,14 @@ int main(int argc, char *argv[])
 
 	return ret;
 }
+
+void TestProgram()
+{
+	//*touchsensor
+		TouchSensorTest();
+		//TouchSensorStart();
+		//sleep(100);
+		//TouchSensorEnd();
+	//*/
+}
+

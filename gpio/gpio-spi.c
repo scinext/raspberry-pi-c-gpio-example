@@ -409,7 +409,10 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 				return 0;
 			}
 		}
-
+		
+		//MCP3204test
+		//diffCounter = diffCounter==0 ? GetArmTimer() : diffCounter;
+		
 		//FIFOから読み込む
 		rd[i] = *(spi+SPI_FIFO);
 		SpiDprintf("\trecive rd[%d]=%d\n\n", i, rd[i]);

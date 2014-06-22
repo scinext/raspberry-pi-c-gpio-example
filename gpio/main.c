@@ -22,6 +22,7 @@ struct timespec startTs, endTs;
 
 #define M_TEST	0
 #define M_I2C	1
+#define M_DISP	2
 
 #define M_WRITE 0
 #define M_READ	1
@@ -39,7 +40,7 @@ int main(int argc, char** argv)
 	 *  -i i2c -s SlaveAddres -a address -r read -w write
 	 *  -t other test
 	 */
-	while( (opt = getopt(argc, argv, "iv:s:a:rw:t")) != -1 )
+	while( (opt = getopt(argc, argv, "div:s:a:rw:t")) != -1 )
 	{
 		switch( opt )
 		{
@@ -63,6 +64,9 @@ int main(int argc, char** argv)
 			case 't':
 				mode = M_TEST;
 				break;
+			case 'd':
+				mode = M_DISP;
+				break;
 		}
 	}
 	
@@ -73,6 +77,7 @@ int main(int argc, char** argv)
 	{
 		case M_I2C:		I2c(slaveAddress, addr, data, rw);	break;
 		case M_TEST:	GpioTest();							break;
+		case M_DISP:	PrintGpioStatus();					break;
 	}
 	return 0;
 }
@@ -109,10 +114,7 @@ void I2c(unsigned int slaveAddress, unsigned int addr, unsigned int data, unsign
 }
 void GpioTest()
 {
-	PrintGpioStatus(gpio);
-	//*touchsensor
-		TouchSensorTest();
-	//*/
+	//PrintGpioStatus();
 	
 	/*interrupt
 		InterruptTest();
@@ -157,7 +159,7 @@ void GpioTest()
 		InitPads();
 	//*/
 	
-	//PrintGpioStatus(gpio);
+	//PrintGpioStatus();
 	
 	/* drain
 		int drainPin = 23;
@@ -165,47 +167,11 @@ void GpioTest()
 		GPIO_CLR(drainPin);
 		//PullUpDown(drainPin, PULL_NONE);
 		
-		PrintGpioPinMode(gpio);
-		PrintGpioLevStatus(gpio);
+		PrintGpioPinMode();
+		PrintGpioLevStatus();
 	//*/
 	return;
 }
-
-
-const int touchOutPin = 27;
-const int touchInPin  = 22;
-struct timespec touchStartTs, touchEndTs;
-int TouchSensorInterrupt(int pin, int value)
-{
-	if( pin == touchInPin )
-	{
-		clock_gettime(CLOCK_MONOTONIC, &touchEndTs);
-		GPIO_CLR(touchOutPin);
-		printf("high\n");
-		TimeDiff(&touchStartTs, &touchEndTs, 0);
-	}
-	return INTERRUPT_CONTINUE;
-}
-void TouchSensorTest()
-{
-	InitPin(touchOutPin, PIN_OUT);
-	GPIO_CLR(touchOutPin);
-	
-	RegisterInterruptPin(touchInPin, PULL_DOWN, EDGE_TYPE_RISE);
-	RegisterInterruptCallback(TouchSensorInterrupt);
-	
-	GpioInterruptStart();
-	
-	//1回目 タッチなしの計測
-	clock_gettime(CLOCK_MONOTONIC, &touchStartTs);
-	GPIO_SET(touchOutPin);
-	PrintGpioStatus(gpio);
-	sleep(10);
-	
-	//interruptを終了させる
-	GpioInterruptEnd();
-}
-
 
 int GpioInterruptCallbackFunc(int pin, int value)
 {
@@ -218,16 +184,16 @@ void InterruptTest()
 	//22, 27, 17が空いてる
 	const int pin = 22;
 	
-	RegisterInterruptPin(pin, PULL_UP, EDGE_TYPE_FALL);
+	RegisterInterruptPin(pin, EDGE_TYPE_FALL);
 	RegisterInterruptCallback(GpioInterruptCallbackFunc);
 	
-	PrintGpioStatus(gpio);
+	PrintGpioStatus();
 	
 	GpioInterruptStart();
 	sleep(10);
 	GpioInterruptEnd();
 	
-	PrintGpioStatus(gpio);
+	PrintGpioStatus();
 	
 	
 	return;
@@ -276,9 +242,9 @@ void I2cTest()
 	uint8_t recive[3] = {0,};
 	int i, ret;
 	
-	//PrintGpioPinMode(gpio);
+	//PrintGpioPinMode();
 	InitI2c(REV_2);
-	//PrintGpioPinMode(gpio);
+	//PrintGpioPinMode();
 	
 	PrintI2cRegister();
 	//I2cSearch();
@@ -336,7 +302,7 @@ void I2cTest()
 		DelayMicroSecond(1000);
 	*/
 	//UnInitI2c();
-	//PrintGpioPinMode(gpio);
+	//PrintGpioPinMode();
 }
 
 void SysTimerTest()
@@ -384,7 +350,7 @@ void SpiTest()
 	InitPin(pin, PIN_OUT);
 	
 	InitSpi();
-	//PrintGpioPinMode(gpio);
+	//PrintGpioPinMode();
 	
 	//PrintSpiRegister();
 	
@@ -436,10 +402,10 @@ void SpiTest()
 	
 	
 	//UnInitSpi();
-	//PrintGpioPinMode(gpio);
+	//PrintGpioPinMode();
 	//
 	//InitPin(pin, PIN_IN);
-	//PrintGpioPinMode(gpio);
+	//PrintGpioPinMode();
 	
 
 	//SetPriority(HIGH_PRIO);
@@ -464,18 +430,89 @@ void SpiTest()
 	/*
 	sleepTime = 10000;
 	InitPin(pin, PIN_OUT);
-	PrintGpioLevStatus(gpio);
+	PrintGpioLevStatus();
 	clock_gettime(CLOCK_MONOTONIC, &startTs);
 	
 	GPIO_SET(pin);
-	PrintGpioLevStatus(gpio);
+	PrintGpioLevStatus();
 	
 	DelayNanoSecond(sleepTime);
 	GPIO_CLR(pin);
-	PrintGpioLevStatus(gpio);
+	PrintGpioLevStatus();
 	
 	clock_gettime(CLOCK_MONOTONIC, &endTs);
 	
 	TimeDiff(&startTs, &endTs, sleepTime);
 	*/
+}
+
+
+void MeasureSleepTime(int pin, long sleepTime, int loop)
+{
+	int i, tmp;
+	struct timespec startTs, endTs, sleepTs;
+
+	tmp = 0;
+    for(i=0; i<loop; i++){
+		GPIO_SET(pin);
+		clock_gettime(CLOCK_MONOTONIC, &startTs);
+		//PrintGpioLevStatus();
+		do{
+			clock_gettime(CLOCK_MONOTONIC, &endTs);
+			//printf("     %ld %ld\n", endTs.tv_sec, endTs.tv_nsec);
+		}while( endTs.tv_nsec < startTs.tv_nsec + sleepTime );
+		GPIO_CLR(pin);
+		//PrintGpioLevStatus();
+
+		tmp += TimeDiff(&startTs, &endTs, sleepTime);
+	}
+	/*誤差 HRT 0 - 1000ns 通常 0 - 1000ns*/
+	UtilDprintf("use clock_gettime             loop %d, avg %ld\n", loop, tmp/loop);
+
+	tmp = 0;
+    for(i=0; i<loop; i++){
+		clock_gettime(CLOCK_MONOTONIC, &startTs);
+	    sleepTs.tv_sec = startTs.tv_sec;
+	    sleepTs.tv_nsec = startTs.tv_nsec + sleepTime;
+		GPIO_SET(pin);
+		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &sleepTs, NULL);
+		GPIO_CLR(pin);
+
+		clock_gettime(CLOCK_MONOTONIC, &endTs);
+		tmp += TimeDiff(&startTs, &endTs, sleepTime);
+	}
+	/*誤差 HRT 17,000 - 30,000 通常 77,000 - 100,000ns */
+	UtilDprintf("use clock_nanosleep TIMER_ABSTIME     loop %d, avg %ld\n", loop, tmp/loop);
+
+	tmp = 0;
+    for(i=0; i<loop; i++){
+		clock_gettime(CLOCK_MONOTONIC, &startTs);
+		sleepTs.tv_sec = 0;
+    	sleepTs.tv_nsec = sleepTime;
+		GPIO_SET(pin);
+		clock_nanosleep(CLOCK_MONOTONIC, 0, &sleepTs, NULL);
+		GPIO_CLR(pin);
+
+		clock_gettime(CLOCK_MONOTONIC, &endTs);
+		tmp += TimeDiff(&startTs, &endTs, sleepTime);
+	}
+	/*誤差 HRT 17,000 - 30,000 通常 77,000 - 100,000ns */
+	UtilDprintf("use clock_nanosleep relative         loop %d, avg %ld\n", loop, tmp/loop);
+
+	tmp = 0;
+    for(i=0; i<loop; i++){
+		clock_gettime(CLOCK_MONOTONIC, &startTs);
+		sleepTs.tv_sec = 0;
+    	sleepTs.tv_nsec = sleepTime;
+		GPIO_SET(pin);
+		nanosleep(&sleepTs, NULL);
+		GPIO_CLR(pin);
+
+		clock_gettime(CLOCK_MONOTONIC, &endTs);
+		tmp += TimeDiff(&startTs, &endTs, sleepTime);
+	}
+	/*誤差 HRT 17,000 - 30,000 通常 77,000 - 100,000ns */
+	UtilDprintf("use nanosleep relative             loop %d, avg %ld\n", loop, tmp/loop);
+
+	UtilDprintf("\n");
 }

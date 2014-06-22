@@ -231,9 +231,17 @@ unsigned int GetRegisterBitDebug(volatile unsigned int *reg, unsigned int bit, u
 struct GpioInterrupt	gpioInterrupt;
 int 					epollFd;
 pthread_t				interruptThreadId;
-void GpioInterruptStart()
+int GpioInterruptStart()
 {
+	//コールバックがない場合はファイルの読込だけして次の書き込みまで再度待ち状態にする
+	if( gpioInterrupt.callback == NULL )
+	{
+		//printf("no register callback\n");
+		return INTERRUPT_NO_CALLBACK;
+	}
 	pthread_create(&interruptThreadId, NULL, InterruptThread, (void *)NULL);
+	
+	return INTERRUPT_START;
 }
 void GpioInterruptEnd()
 {
@@ -292,16 +300,13 @@ int WriteSysGpio(char *path, char *writeData)
 	
 	return 1;
 }
-int RegisterInterruptPin(int pin, int upDown, int edgeType)
+int RegisterInterruptPin(int pin, int edgeType)
 {
 	int  fd;
 	char value;
 	char sysfsPath[100];
 	char buf[20];
 	struct epoll_event ev;
-	
-	InitPin(pin, PIN_IN);
-	PullUpDown(pin, upDown);
 	
 	//linuxのデバイスドライバを使う レジスタを使うと割り込みが取得できない
 	//http://vintagechips.wordpress.com/2013/09/09/linuxの流儀でgpioを監視する/
@@ -415,12 +420,6 @@ void* InterruptThread(void *param)
 			//lseek(gpioInterrupt.fd[i], 0, SEEK_SET);
 			//read(gpioInterrupt.fd[i], &c, sizeof(char));
 			
-			//コールバックがない場合はファイルの読込だけして次の書き込みまで再度待ち状態にする
-			if( gpioInterrupt.callback == NULL )
-			{
-				//printf("no register callback\n");
-				continue;
-			}
 			//printf("n=%d  fd=%d \n", n, events[n].data.fd);
 			
 			//epollのイベントが来たファイルディスクリプタのpinを検索、コールバック実行

@@ -13,10 +13,6 @@
 void I2c(unsigned int slaveAddress, unsigned int addr, unsigned int data, unsigned int rw);
 void GpioTest();
 
-//touchsensor
-	int TouchSensorInterrupt(int pin, int value);
-	void TouchSensorTest();
-
 //interrupt
 	int GpioInterruptCallbackFunc(int pin, int value);
 	void InterruptTest();
@@ -47,5 +43,8 @@ void GpioTest();
 
 //arm timer
 	void ArmTimerTest();
+
+
+void MeasureSleepTime(int pin, long sleepTime, int loop);
 
 #endif

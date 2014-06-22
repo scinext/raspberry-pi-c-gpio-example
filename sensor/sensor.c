@@ -138,8 +138,8 @@ void Drain(int pin, int ch)
 	//InitPin(pin, PIN_IN);
 	//PullUpDown(pin, PULL_DOWN);
 
-	//PrintGpioPinMode(gpio);
-	//PrintGpioLevStatus(gpio);
+	//PrintGpioPinMode();
+	//PrintGpioLevStatus();
 
 	//ドレインピンを使用して放電 最大20ms*50 = 1s
 	for(i=0; i<50; i++)
@@ -164,8 +164,8 @@ void Drain(int pin, int ch)
 	InitPin(pin, PIN_IN);
 	PullUpDown(pin, PULL_NONE);
 
-	//PrintGpioPinMode(gpio);
-	//PrintGpioLevStatus(gpio);
+	//PrintGpioPinMode();
+	//PrintGpioLevStatus();
 	return;
 }
 void GetLuxTest(int loop, unsigned int sleepTime, unsigned int lsb, int type)
@@ -385,8 +385,14 @@ float GetLux()
 	//( (0.000947-0.000030)=0.000917[uA]=9.17e-4[uA]=91.7[nA]ぐらい )初期値としては出力用にしておく
 	InitPin(pin, PIN_OUT);
 	GPIO_CLR(pin);
-	InitPin(drainPin, PIN_OUT);
-	GPIO_CLR(drainPin);
+	
+	//一度Pull up/downを動かさないとnoneがうまく動かないっポイ
+	InitPin(drainPin, PIN_IN);
+	PullUpDown(drainPin, PULL_UP);
+	PullUpDown(drainPin, PULL_DOWN);
+	//PrintGpioStatus();
+	//PrintGpioPinMode();
+	//PrintGpioLevStatus();
 
 	for(i=0; i<ARRAY_SIZE(range); i++)
 	{
@@ -730,4 +736,5 @@ float GetCoreTemp()
 	//return atoi(buf);
 	return (float)( atoi(buf)/1000.0f );
 }
+
 

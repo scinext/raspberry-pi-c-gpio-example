@@ -269,6 +269,7 @@ unsigned int GetADNoPadPin(int pin, int ch, unsigned int sleepTime)
 	//PrintUintDelimiter(stdout, b, 4);
 	
 	SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
+	//useTime = SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
 	//printf("use time %d\n", useTime);
 	
 	b = rbuf[0]<<16 | rbuf[1]<<8 | rbuf[2];
@@ -414,7 +415,7 @@ unsigned int GetADmcp3204(int pin, int ch, unsigned long sleepTime)
 	send	= (0x3<<3) | ch;
 	recive	= 0;
 	
-	//PrintGpioLevStatus(gpio);
+	//PrintGpioLevStatus();
 	
 	//待機時間の処理
 	//データ送信時間 5byte 約5us(1MHz) -> 実測55(0.1us)
