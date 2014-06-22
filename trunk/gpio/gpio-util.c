@@ -50,7 +50,7 @@ void PrintUintDelimiter(FILE *fp, unsigned int bin, int col)
 	return;
 }
 
-void PrintGpioStatus(volatile unsigned int *gpio)
+void PrintGpioStatus()
 {
 	int i;
 	int initGpfsel, initEtc;
@@ -107,7 +107,7 @@ void PrintGpioStatus(volatile unsigned int *gpio)
 	printf("\n");
 }
 
-void PrintGpioPinMode(volatile unsigned int *gpio)
+void PrintGpioPinMode()
 {
 	int i;
 	printf("                                          R   9   8   7   6   5   4   3   2   1   0\n");
@@ -125,25 +125,11 @@ void PrintGpioPinMode(volatile unsigned int *gpio)
 	//PrintRegStatus(stdout, gpio, 3, "GPFSEL4         ", 0);
 	//PrintRegStatus(stdout, gpio, 5, "GPFSEL5         ", 0);
 }
-void PrintGpioLevStatus(volatile unsigned int *gpio)
+void PrintGpioLevStatus()
 {
 	PrintRegStatus(stdout, gpio, GPIO_LEV_0, "GPLEV0          ", 1);
 	PrintRegStatus(stdout, gpio, GPIO_LEV_1, "GPLEV1          ", 0);
 }
-
-//void PrintRegStatus(volatile unsigned int *reg, int addr, char *text, int dispDigit)
-//{
-//	if( dispDigit == 1 )
-//		printf("                                             28   24   20   16   12    8    4    0\n");
-//
-//	if( text != NULL )
-//		printf("%s", text);
-//	else
-//		printf("                ", text);
-//	
-//	printf("0x%X = ", (reg + addr) );
-//	PrintUintDelimiter(stdout, *(reg + addr), 4 );
-//}
 
 void PrintRegStatus(FILE *fp, volatile unsigned int *reg, int addr, char *text, int dispDigit)
 {
@@ -205,106 +191,37 @@ void PrintLog(FILE *fp, const char *str, ...)
 unsigned int TimeDiff(struct timespec *startTs, struct timespec *endTs, long sleep)
 {
 	long diffNanoSecond, diffSecond;
-	long diffUseNanoSecond, diffUseSecond;
 	long diffSleep;
 	struct timespec tmpTs1, tmpTs2, useTs;
 
-
-	diffSecond		= endTs->tv_sec - startTs->tv_sec;
-	diffNanoSecond	= endTs->tv_nsec - startTs->tv_nsec;
+	TimespecDiff(startTs, endTs, &useTs);
+	
+	diffSecond		= useTs.tv_sec;
+	diffNanoSecond	= useTs.tv_nsec;
 	diffSleep		= diffNanoSecond - sleep;
+	
 	#if defined(TIME_DETAILE) || defined(TIME_DETAILE_MORE)
-		printf("     sleep time diff %ld - %ld = %ld\n", diffNanoSecond, sleep, diffSleep);
+		printf("     time diff:%ld  sleep:%ld   d-s= %ld\n", diffNanoSecond, sleep, diffSleep);
 	#endif
 
 	#ifdef TIME_DETAILE_MORE
-		printf("     start    : %ld %ld\n", startTs->tv_sec, startTs->tv_nsec);
-		printf("     end    : %ld %ld\n", endTs->tv_sec, endTs->tv_nsec);
+		printf("     start  : %10ld %10ld\n", startTs->tv_sec, startTs->tv_nsec);
+		printf("     end    : %10ld %10ld\n", endTs->tv_sec, endTs->tv_nsec);
 		printf("         second diff %ld %ld\n", diffSecond, diffNanoSecond);
 
 		clock_gettime(CLOCK_MONOTONIC, &tmpTs1);
 		clock_gettime(CLOCK_MONOTONIC, &tmpTs2);
-		useTs.tv_sec	= tmpTs2.tv_sec - tmpTs1.tv_sec;
-		useTs.tv_nsec	= tmpTs2.tv_nsec - tmpTs1.tv_nsec;
-		diffUseSecond		= endTs->tv_sec - startTs->tv_sec - useTs.tv_sec;
-		diffUseNanoSecond	= endTs->tv_nsec - startTs->tv_nsec - useTs.tv_nsec;
+		TimespecDiff(tmpTs1, tmpTs2, &useTs);
+		diffSecond		= endTs->tv_sec - startTs->tv_sec - useTs.tv_sec;
+		diffNanoSecond	= endTs->tv_nsec - startTs->tv_nsec - useTs.tv_nsec;
 		printf("         clock_gettime use time %ld %ld\n", useTs.tv_sec, useTs.tv_nsec);
-		printf("         second clock_gettime use time diff %ld %ld\n", diffUseSecond, diffUseNanoSecond);
+		printf("         second clock_gettime use time diff %ld %ld\n", diffSecond, diffNanoSecond);
 	#endif
 
 	//スリープとの差をナノ秒の絶対値として返す
 	if( diffSleep < 0 )
 		diffSleep *= -1;
 	return diffSleep;
-}
-void MeasureSleepTime(int pin, long sleepTime, int loop)
-{
-	int i, tmp;
-	struct timespec startTs, endTs, sleepTs;
-
-	tmp = 0;
-    for(i=0; i<loop; i++){
-		GPIO_SET(pin);
-		clock_gettime(CLOCK_MONOTONIC, &startTs);
-		//PrintGpioLevStatus(gpio);
-		do{
-			clock_gettime(CLOCK_MONOTONIC, &endTs);
-			//printf("     %ld %ld\n", endTs.tv_sec, endTs.tv_nsec);
-		}while( endTs.tv_nsec < startTs.tv_nsec + sleepTime );
-		GPIO_CLR(pin);
-		//PrintGpioLevStatus(gpio);
-
-		tmp += TimeDiff(&startTs, &endTs, sleepTime);
-	}
-	/*誤差 HRT 0 - 1000ns 通常 0 - 1000ns*/
-	UtilDprintf("use clock_gettime             loop %d, avg %ld\n", loop, tmp/loop);
-
-	tmp = 0;
-    for(i=0; i<loop; i++){
-		clock_gettime(CLOCK_MONOTONIC, &startTs);
-	    sleepTs.tv_sec = startTs.tv_sec;
-	    sleepTs.tv_nsec = startTs.tv_nsec + sleepTime;
-		GPIO_SET(pin);
-		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &sleepTs, NULL);
-		GPIO_CLR(pin);
-
-		clock_gettime(CLOCK_MONOTONIC, &endTs);
-		tmp += TimeDiff(&startTs, &endTs, sleepTime);
-	}
-	/*誤差 HRT 17,000 - 30,000 通常 77,000 - 100,000ns */
-	UtilDprintf("use clock_nanosleep TIMER_ABSTIME     loop %d, avg %ld\n", loop, tmp/loop);
-
-	tmp = 0;
-    for(i=0; i<loop; i++){
-		clock_gettime(CLOCK_MONOTONIC, &startTs);
-		sleepTs.tv_sec = 0;
-    	sleepTs.tv_nsec = sleepTime;
-		GPIO_SET(pin);
-		clock_nanosleep(CLOCK_MONOTONIC, 0, &sleepTs, NULL);
-		GPIO_CLR(pin);
-
-		clock_gettime(CLOCK_MONOTONIC, &endTs);
-		tmp += TimeDiff(&startTs, &endTs, sleepTime);
-	}
-	/*誤差 HRT 17,000 - 30,000 通常 77,000 - 100,000ns */
-	UtilDprintf("use clock_nanosleep relative         loop %d, avg %ld\n", loop, tmp/loop);
-
-	tmp = 0;
-    for(i=0; i<loop; i++){
-		clock_gettime(CLOCK_MONOTONIC, &startTs);
-		sleepTs.tv_sec = 0;
-    	sleepTs.tv_nsec = sleepTime;
-		GPIO_SET(pin);
-		nanosleep(&sleepTs, NULL);
-		GPIO_CLR(pin);
-
-		clock_gettime(CLOCK_MONOTONIC, &endTs);
-		tmp += TimeDiff(&startTs, &endTs, sleepTime);
-	}
-	/*誤差 HRT 17,000 - 30,000 通常 77,000 - 100,000ns */
-	UtilDprintf("use nanosleep relative             loop %d, avg %ld\n", loop, tmp/loop);
-
-	UtilDprintf("\n");
 }
 
 //ある程度大きい数ならclock_nanosleepにする

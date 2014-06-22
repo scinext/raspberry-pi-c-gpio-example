@@ -54,7 +54,7 @@ void DelayMicroSecond(unsigned int delayMicroSecond)
 	{
 		//ハイカウンタがカウントされるまで待機
 		while( *(sysTimer+SYS_TIMER_CHI) > hiCounter )
-			usleep(SLEEP_WAIT_3); //250ms
+			usleep(SLEEP_WAIT_3); //250us
 	}
 	while( *(sysTimer+SYS_TIMER_CLO) < delayedTime )
 		;

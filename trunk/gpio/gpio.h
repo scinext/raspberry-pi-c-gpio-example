@@ -136,6 +136,9 @@ typedef enum _RpiRevision{
 #define REGISTER_INTERRUPT_EPOLL_CTL_FAIL	 -7
 #define REGISTER_INTERRUPT_SUCCESS			 1
 
+#define INTERRUPT_NO_CALLBACK	-1;
+#define INTERRUPT_START			1;
+
 #define SYS_GPIO		"/sys/class/gpio/"
 #define EDGE_TYPE_BOTH	0
 #define EDGE_TYPE_RISE	1
@@ -149,13 +152,13 @@ struct GpioInterrupt{
 	GpioInterruptCallback callback;
 };
 
-void GpioInterruptStart();
+int GpioInterruptStart();
 void GpioInterruptEnd();
 void GpioInerruptUnInit();
 
 void RegisterInterruptCallback(GpioInterruptCallback callback);
 int WriteSysGpio(char *path, char *writeData);
-int RegisterInterruptPin(int pin, int upDown, int edgeType);
+int RegisterInterruptPin(int pin, int edgeType);
 void* InterruptThread(void *param);
 
 

@@ -58,8 +58,8 @@ void Dprintf(const char *str, ...);
 void PinInit();
 void PinUnInit();
 
-//interrupt
-int GpioInterruptCallbackFunc(int pin, int value);
+//touch sensor interrupt
+void TouchSensorInterruptCallback();
 
 
 //メッセージループ内でのメッセージの処理

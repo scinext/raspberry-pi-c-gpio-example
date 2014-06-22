@@ -29,6 +29,8 @@
 #include "mode.h"
 #include "threads.h"
 
+//モード変更のタッチセンサ
+#include "../sensor/touchSensor.h"
 
 //スレッド
 int		g_threadStatus;
@@ -90,27 +92,15 @@ void PinUnInit()
 }
 
 
-int GpioInterruptCallbackFunc(int pin, int value)
-{
-	if( pin == nextModePin )
-	{
-		//PULL_UPで行ってるので初期状態が1
-		if( value == 0 )
-		{
-			printf("Interrupt next mode button\n");
-			
-			SendShiftRegister( 0x0000 );
-			if( g_outputMode+1 < MODE_OUTPUT )
-				++g_outputMode;
-			else
-				g_outputMode = MODE_CLOCK;
-		}
-	}
+void TouchSensorInterruptCallback()
+{	
+	SendShiftRegister( 0x0000 );
+	if( g_outputMode+1 < MODE_OUTPUT )
+		++g_outputMode;
 	else
-	{
-		printf("callback func pin:%d, value:%d\n", pin, value);
-	}
-	return INTERRUPT_CONTINUE;
+		g_outputMode = MODE_CLOCK;
+	
+	MySysLog(LOG_DEBUG, "Interrupt touch sensor mode to %d\n", g_outputMode);
 }
 
 int MsgDisposition(char *msg)
@@ -177,10 +167,8 @@ void ReciveQueue()
 	//	MySysLog(LOG_DEBUG, "no log\n");
 	//}
 	
-	//interrupt
-	//RegisterInterruptPin(nextModePin, PULL_UP, EDGE_TYPE_FALL);
-	//RegisterInterruptCallback(GpioInterruptCallbackFunc);
-	//GpioInterruptStart();
+	//touch sensor interrupt
+	TouchSensorStart(TouchSensorInterruptCallback);
 
 	//メッセージキューでやり取りするメッセージのサイズの取得(設定はできない)
 	mq_getattr(g_mq, &mqAttr);
