@@ -45,6 +45,9 @@ int		g_debugOpt;
 //出力するモード
 int		g_outputMode;
 
+//スクロール表示のバッファとりあえず256文字s
+char	g_scrollBuf[SCROLL_BUF];
+
 //ロガー用
 float	g_press		= INIT_SENSOR;
 float	g_temp		= INIT_SENSOR;
@@ -69,7 +72,7 @@ void Dprintf(const char *str, ...)
 
 	va_start(args, str);
 	//デバッグ出力
-	if( g_debugOpt == 1 )
+	if( g_debugOpt == DEBUG_OUTPUT )
 		vprintf(str, args);
 
 	va_end(args);
@@ -91,15 +94,68 @@ void PinUnInit()
 	UnInitAD();
 }
 
-
-void TouchSensorInterruptCallback()
+void SignalHandler(int signum)
+{
+	switch( signum )
+	{
+		case SIGTERM:
+			{
+				//scroll[ good by ]
+				ScrollOutputInit( SCROLL_EXIT );
+				g_outputMode = MODE_OUTPUT;
+				LogBukup();
+			}
+			break;
+	}
+}
+void TouchSensorInterruptCallback(unsigned int cap)
 {	
 	SendShiftRegister( 0x0000 );
-	if( g_outputMode+1 < MODE_OUTPUT )
-		++g_outputMode;
-	else
+	if( cap < 20000 )
+	{
+		//モードを切り替える
+		
+		if( g_outputMode+1 < MODE_OUTPUT )
+			++g_outputMode;
+		else
+			g_outputMode = MODE_CLOCK;
+	}
+	else if( cap < 60000 )
+	{
+		//logをpiのホームディレクトリへ保存
+		
+		
+		g_outputMode = MODE_ANI_0;
+		LogBukup();
+		sleep(2);
+		
+		//scroll[ log save ]
+		ScrollOutputInit( SCROLL_LOG_SAVE );
+		g_outputMode = MODE_OUTPUT;
+		sleep(5);
+		
 		g_outputMode = MODE_CLOCK;
-	
+	}
+	else
+	{
+		//終了させる
+		
+		
+		//アニメーション
+		g_outputMode = MODE_ANI_1;
+		LogBukup();
+		sleep(2);
+		
+		//scroll[ good by ]
+		ScrollOutputInit( SCROLL_EXIT );
+		g_outputMode = MODE_OUTPUT;
+		sleep(5);
+		
+		//MySysLog(LOG_DEBUG, "  send message touch sensor : %d  %s\n", g_mq, EXIT_MSG);
+		MySysLog(LOG_DEBUG, "  cap %u\n", cap);
+		//g_outputMode = MODE_CLOCK;
+		mq_send(g_mq, EXIT_MSG, strlen(EXIT_MSG), 0);
+	}
 	MySysLog(LOG_DEBUG, "Interrupt touch sensor mode to %d\n", g_outputMode);
 }
 
@@ -107,7 +163,7 @@ int MsgDisposition(char *msg)
 {
 	char *msgQueuePrefix;
 
-	if( strcmp(msg, "exit") == 0 )
+	if( strcmp(msg, EXIT_MSG) == 0 )
 	{
 		MySysLog(LOG_DEBUG, "  exit message\n");
 		return -1;
@@ -131,8 +187,9 @@ int MsgDisposition(char *msg)
 	else
 	{
 		//違うならとりあえず送付
+		MySysLog(LOG_DEBUG, "  output mode %s\n", msg);
+		ScrollOutputInit( msg );
 		g_outputMode = MODE_OUTPUT;
-		ReverseInsert(msg);
 	}
 	return 1;
 }
@@ -145,7 +202,14 @@ void ReciveQueue()
 
 	//gpioの初期化
 	PinInit();
-
+	
+	//ログの処理
+	LogOpen();
+	
+	//シグナルの設定
+	if( SIG_ERR == signal(SIGTERM, SignalHandler) )
+		MySysLog(LOG_WARNING, "not recive SIGTERM \n");
+	
 	//スレッドの初期化
 	g_threadStatus = 1;
 	//データ取得用
@@ -168,7 +232,7 @@ void ReciveQueue()
 	//}
 	
 	//touch sensor interrupt
-	TouchSensorStart(TouchSensorInterruptCallback);
+	TouchSensorStart( TouchSensorInterruptCallback );
 
 	//メッセージキューでやり取りするメッセージのサイズの取得(設定はできない)
 	mq_getattr(g_mq, &mqAttr);
@@ -361,7 +425,7 @@ int main(int argc, char *argv[])
 				printf("-D デバッグ                -f XX ログやデバッグ時の情報の細かさ 0 or それ以外1\n");
 				return 0;
 			case 'D':
-				g_debugOpt = 1;
+				g_debugOpt = DEBUG_OUTPUT;
 				#ifdef SYS_LOG
 				setlogmask( LOG_UPTO(LOG_DEBUG) );
 				#endif
@@ -420,7 +484,7 @@ int main(int argc, char *argv[])
 				break;
 			case 'q':
 				quit = 1;
-				sprintf(buf, "exit");
+				sprintf(buf, EXIT_MSG);
 				break;
 			case 'r':
 				reset = 1;

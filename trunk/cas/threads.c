@@ -18,6 +18,9 @@
 //syslog
 #include <syslog.h>
 
+//stat chmod
+#include <sys/stat.h>
+
 #include "../gpio/gpio.h"
 #include "../gpio/gpio-util.h"
 
@@ -41,6 +44,8 @@ const int sh = 14;	//shift register
 //スレッド
 extern int		g_threadStatus;
 extern int		g_dispData[SEG_COUNT];
+
+extern int		g_debugOpt;
 
 //出力するモード
 extern int		g_outputMode;
@@ -126,6 +131,7 @@ void* DispDataThread(void* param)
 
 			SendShiftRegister( g_dispData[digit] );
 
+			//シフトレジスタで表示する桁の変更
 			digit = digit>=3 ? 0 : digit+1;
 
 			usleep(DIGIT_SWITCH);
@@ -470,3 +476,59 @@ void SensorLog()
 //}
 //
 // */
+
+
+//logのバックアップ
+void LogBukup()
+{
+	//コマンドの実行
+	if( g_debugOpt == DEBUG_OUTPUT )
+	{
+		MySysLog(LOG_DEBUG, "%s\n", LOG_SAVE_ZIP_D );
+		system( LOG_SAVE_ZIP_D );
+	}
+	else
+	{
+		MySysLog(LOG_DEBUG, "%s\n", LOG_SAVE_ZIP );
+		system( LOG_SAVE_ZIP );
+	}
+	
+}
+//logの復元
+void LogOpen()
+{
+	struct stat status;
+	mode_t proccessMask;
+	int exist;
+	
+	//logのzipファイルの存在確認
+	exist = stat(LOG_ZIP, &status);
+	if( exist == -1 )
+	{
+		MySysLog(LOG_DEBUG, "no log zip\n");
+		return;
+	}
+	
+	//logディレクトリの確認 後でここにグラフを作成するためマスクを外してall-OKに
+	exist = stat(LOG_DIR, &status);
+	if( exist == -1 )
+	{
+		proccessMask = umask(0);
+		mkdir(LOG_DIR, 0777);
+		umask(proccessMask);
+		
+		MySysLog(LOG_DEBUG, "no log directory\n");
+	}
+	
+	//コマンドの実行
+	if( g_debugOpt == DEBUG_OUTPUT )
+	{
+		MySysLog(LOG_DEBUG, "%s\n", LOG_OPEN_ZIP_D);
+		system( LOG_OPEN_ZIP_D );
+	}
+	else
+	{
+		MySysLog(LOG_DEBUG, "%s\n", LOG_OPEN_ZIP);
+		system( LOG_OPEN_ZIP );
+	}
+}

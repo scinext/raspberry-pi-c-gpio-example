@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 			TestProgram();
 			break;
 		default:
-			printf("mode select t-Temp, p-Press, h-Humidity, l-Lux(condenser) L-(ohm) i-(ADC ch) DtphlL:i:\n");
+			printf("mode select t-Temp, p-Press, h-Humidity, l-Lux(condenser) L-(ohm) i-(ADC ch) -b テストモード DtphlL:i:b\n");
 			break;
 	}
 
