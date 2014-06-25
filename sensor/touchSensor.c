@@ -25,9 +25,9 @@ int oldValue;
 OnTouchCallback onTouchCallback;
 
 
-void onTouchCallbackTest()
+void onTouchCallbackTest(unsigned int cap)
 {
-	printf("onTouchCallback Test\n");
+	printf("\t\t onTouchCallback Test cap %u\n", cap);
 }
 
 void TouchSensorTest()
@@ -125,9 +125,6 @@ void TouchSensorStart(OnTouchCallback callback)
 	RegisterInterruptCallback(TouchSensorInterrupt);
 	GpioInterruptStart();
 	
-	//電源ON
-	GPIO_SET(touchOutPin);
-	
 	////1500us辺りがデバイスドライバで反応できる限界っぽい 念の為2000us辺りにしとく
 	//int sleepDirect = 2000;
 	//printf("direct\n");
@@ -142,6 +139,13 @@ void TouchSensorStart(OnTouchCallback callback)
 	//GPIO_SET(touchOutPin);	DelayMicroSecond(sleepDirect);
 	//GPIO_CLR(touchOutPin);	DelayMicroSecond(sleepDirect);
 	//GPIO_SET(touchOutPin);	DelayMicroSecond(sleepDirect);
+	
+	//電源ON
+	GPIO_SET(touchOutPin);
+	//DelayMicroSecond(sleepDirect);
+	//GPIO_CLR(touchOutPin);
+	//DelayMicroSecond(sleepDirect);
+	//GPIO_SET(touchOutPin);
 }
 void TouchSensorEnd()
 {
@@ -154,29 +158,34 @@ void TouchSensorEnd()
 
 int TouchSensorInterrupt(int pin, int value)
 {
-	static unsigned int oldCounter;
+	static unsigned int oldCounter, onTouchDiffCounter;
 	static int oldTouch, onTouch;
 	if( pin == touchInPin )
 	{	
 		//value = GPIO_GET(touchInPin);
-		if( oldValue != value && value == LOW )
+		if( oldValue == value || onTouchCallback == NULL )
+			return INTERRUPT_CONTINUE;
+		
+		oldValue = value;
+		
+		if( value == LOW )
 		{
 			startCounter = GetArmTimer();
-			oldValue = value;
 			//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "t Low start mesure capacitance to high\n");
 		}
-		else if( oldValue != value )
+		else if( startCounter != 0 )
 		{
+			//電源オン後一回目はstartCounterが0のため数字がおかしくなるのでskip
+			
 			endCounter = GetArmTimer();
 			
-			oldValue = value;
 			diffCounter = endCounter - startCounter;
 			//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t High end mesure capacitance   counter diff: %d\n", diffCounter);
 			
 			//人体の静電容量600pF～100pFのあるなしの充電時間の違いから計算する
 			//接触中は充電(Low)時間が長いので規定以上で接触と判断
 			onTouch = diffCounter>TOUCH_JUDGE ? ON_TOUCH : OFF_TOUCH;
-			
+						
 			//以前と違う接触状態なら続行
 			if( onTouch != oldTouch )
 			{
@@ -193,13 +202,21 @@ int TouchSensorInterrupt(int pin, int value)
 					SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t old diff %u\n", endCounter - oldCounter);
 					if( oldCounter + OLD_TOUCH < endCounter )
 					{
-						SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t Mode Change\n");
-						if( onTouchCallback != NULL )
-							onTouchCallback();
+						//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t Mode Change\n");
+						onTouchCallback(onTouchDiffCounter);
 					}
 					oldCounter = endCounter;
 				}
+				else
+				{
+					//タッチ時のcap時間の初期化
+					onTouchDiffCounter = 0;
+				}
 			}
+			//タッチの場合 最大cap時間の更新
+			//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t counter diff: %u, old diff: %u\n", diffCounter, onTouchDiffCounter);
+			if( onTouch == ON_TOUCH && onTouchDiffCounter < diffCounter )
+				onTouchDiffCounter = diffCounter;
 		}
 	}
 	return INTERRUPT_CONTINUE;

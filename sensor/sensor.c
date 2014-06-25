@@ -50,7 +50,7 @@ void SensorLogPrintf(int level, const char *str, ...)
 
 		va_start(args, str);
 
-		if( g_consoleOutput == 1 )
+		if( g_consoleOutput == SENSOR_DEBUG_OUTPUT )
 		{
 			vfprintf(stdout, str, args);
 		}

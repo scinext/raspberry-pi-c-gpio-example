@@ -5,16 +5,24 @@
 #define LOCK_FILE				"/tmp/cas.lock"
 #define APPNAME					"clock&sensor"
 #define MSG_QUEUE_NAME			"/mq-cas"
-//本来はメッセージのバッファの長さはシステムが決めるが
-//とりあえず使用する長さを仮決定する MODE_XX で10で充分
-#define MSG_QUEUE_LEN			10
-#define MSG_QUEUE_MODE_PREFIX	"MODE_"
 
 #define LOG_DIR					"/var/log/cas/"
+#define LOG_ZIP					"/home/pi/caslog.zip"
 
 
-#define SERVER_PROCESS	0
-#define CLIENT_PROCESS	1
+#define SCROLL_BUF				100
+#define SPACE 					 "   "
+#define SPACE_LENGTH			3
+#define SCROLL_EXIT				"good by"	//タッチセンサでの終了時のメッセージ
+#define SCROLL_LOG_SAVE			"log save"	//タッチセンサでのログ保存メッセージ
+
+//ログの圧縮と解凍
+#define LOG_SAVE_ZIP			"zip -rjq " LOG_ZIP " " LOG_DIR
+#define LOG_OPEN_ZIP			"unzip -oq " LOG_ZIP " -d " LOG_DIR
+
+#define LOG_SAVE_ZIP_D			"zip -rj " LOG_ZIP " " LOG_DIR
+#define LOG_OPEN_ZIP_D			"unzip -o " LOG_ZIP " -d " LOG_DIR
+
 
 typedef enum {
 	MODE_CLOCK		= 0x0001,	//c 時計
@@ -33,6 +41,21 @@ typedef enum {
 	MODE_ANI_2		,			//a 2 アニメーション3
 	MODE_QUIT					//q 全体の番兵
 }ModeSelect;
+
+
+//本来はメッセージのバッファの長さはシステムが決めるが
+//とりあえず使用する長さを仮決定する MODE_XX で10で充分だが
+//スクロールさせるのでSCROLL_BUF[100] 確保する
+#define MSG_QUEUE_LEN			SCROLL_BUF
+#define MSG_QUEUE_MODE_PREFIX	"MODE_"
+#define EXIT_MSG				"exit"		//exit message
+
+
+#define SERVER_PROCESS	0
+#define CLIENT_PROCESS	1
+
+#define DEBUG_OUTPUT	1
+#define NO_DEBUG_OUTPUT	0
 
 //データ取得間隔 初期値1分間隔
 #define DATA_INTERVAL_DEF	60
@@ -58,8 +81,11 @@ void Dprintf(const char *str, ...);
 void PinInit();
 void PinUnInit();
 
+//signal
+void SignalHandler(int signum);
+
 //touch sensor interrupt
-void TouchSensorInterruptCallback();
+void TouchSensorInterruptCallback(unsigned int cap);
 
 
 //メッセージループ内でのメッセージの処理

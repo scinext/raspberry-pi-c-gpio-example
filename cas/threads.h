@@ -23,4 +23,9 @@ void SensorLog();
 ////センサのデータをロギングする
 //void* SensorLoggerThread(void *param);
 
+//logのバックアップ
+void LogBukup();
+//logの復元
+void LogOpen();
+
 #endif

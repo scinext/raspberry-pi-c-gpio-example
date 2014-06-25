@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 //syslog
@@ -21,6 +22,7 @@
 
 extern int		g_dispData[SEG_COUNT];
 
+extern char		g_scrollBuf[SCROLL_BUF];
 
 extern float	g_press;
 extern float	g_temp;
@@ -143,6 +145,7 @@ void DispModeData(int mode)
 			WaitLogTime(init);
 			break;
 		case MODE_OUTPUT:
+			ScrollOutput(init);
 			break;
 		case MODE_CLOCK:
 		default:
@@ -156,7 +159,6 @@ void ReverseInsert(char *buf)
 	int i;
 	for(i=0; i<SEG_COUNT; i++)
 	{
-
 		//一番下から
 		switch( buf[3-i] )
 		{
@@ -518,6 +520,51 @@ void ClockMode(int init)
 	strftime(g_segBuf, sizeof(g_segBuf), "%k%M", g_ts);
 
 	ReverseInsert(g_segBuf);
+}
+
+void ScrollOutputInit(char *buf)
+{
+	int length;
+	
+	memset(g_scrollBuf, 0, sizeof(char)*SCROLL_BUF);
+	
+	//先頭のスペース3文字分を省いた文字以下なら処理
+	length = strlen(buf);
+	if( length <= 4 )
+		sprintf(g_scrollBuf, "%s", buf);
+	else if( length <= SCROLL_BUF-SPACE_LENGTH )
+		sprintf(g_scrollBuf, SPACE "%s", buf);
+	else
+		strcpy(g_scrollBuf, "char over");
+	
+}
+void ScrollOutput(int init)
+{
+	static int i;
+	int length;
+	
+	length = strlen(g_scrollBuf);
+	if( length <= 4 )
+	{
+		i = 0;
+	}
+	else
+	{		
+		if( g_loopCounter > 70 )
+		{
+			g_loopCounter = 0;
+			if( ++i >= length )
+				i = 0;
+			//printf("  i: %d, string: %s\n", i, &(g_scrollBuf[i]) );
+		}
+		else if( init == MODE_START )
+		{
+			//最初の場合、文字を左端に表示させるためにスペース分は飛ばす
+			//直ぐに飛ばされるのでわざと1文字分スペースを空ける
+			i = SPACE_LENGTH-1;
+		}
+	}
+	ReverseInsert( &(g_scrollBuf[i]) );
 }
 
 #define N_TO_NANO			1e+9

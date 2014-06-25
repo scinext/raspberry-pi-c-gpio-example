@@ -132,6 +132,9 @@ void LuxMode(int init);
 void HumMode(int init);
 void CoreTemp(int init);
 
+void ScrollOutputInit(char *buf);
+void ScrollOutput(int init);
+
 void YearMode(int init);
 void DateMode(int init);
 void ClockMode(int init);

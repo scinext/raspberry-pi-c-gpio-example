@@ -3,10 +3,10 @@
 #define TOUCH_SENSORH
 
 
-typedef void (*OnTouchCallback)();
+typedef void (*OnTouchCallback)(unsigned int cap);
 //touchsensor
 	void TouchSensorTest();
-	void onTouchCallbackTest();
+	void onTouchCallbackTest(unsigned int cap);
 	
 	
 void TouchSensorInit();
