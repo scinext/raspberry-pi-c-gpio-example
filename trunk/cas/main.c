@@ -111,7 +111,8 @@ void SignalHandler(int signum)
 void TouchSensorInterruptCallback(unsigned int cap)
 {	
 	SendShiftRegister( 0x0000 );
-	if( cap < 20000 )
+	//MySysLog(LOG_DEBUG, "  cap %u\n", cap);
+	if( cap < 40000 )
 	{
 		//モードを切り替える
 		
@@ -127,7 +128,7 @@ void TouchSensorInterruptCallback(unsigned int cap)
 		
 		g_outputMode = MODE_ANI_0;
 		LogBukup();
-		sleep(2);
+		sleep(1);
 		
 		//scroll[ log save ]
 		ScrollOutputInit( SCROLL_LOG_SAVE );
@@ -152,11 +153,10 @@ void TouchSensorInterruptCallback(unsigned int cap)
 		sleep(5);
 		
 		//MySysLog(LOG_DEBUG, "  send message touch sensor : %d  %s\n", g_mq, EXIT_MSG);
-		MySysLog(LOG_DEBUG, "  cap %u\n", cap);
 		//g_outputMode = MODE_CLOCK;
 		mq_send(g_mq, EXIT_MSG, strlen(EXIT_MSG), 0);
 	}
-	MySysLog(LOG_DEBUG, "Interrupt touch sensor mode to %d\n", g_outputMode);
+	//MySysLog(LOG_DEBUG, "Interrupt touch sensor mode to %d\n", g_outputMode);
 }
 
 int MsgDisposition(char *msg)
