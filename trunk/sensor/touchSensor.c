@@ -13,8 +13,8 @@
 #include "sensor.h"
 #include "touchSensor.h"
 
-#define TOUCH_JUDGE 10000	//armtimerが高分解能のため*10されてる, 2本指で反応させる
-#define OLD_TOUCH	2*1e+6	//2*1000[us]*100[ms]*10[高分解]
+#define TOUCH_JUDGE 1500
+#define OLD_TOUCH	2*1e+6	//2*100[ms]*1000[us]*10[高分解]
 #define ON_TOUCH	1
 #define OFF_TOUCH	0
 
@@ -158,7 +158,7 @@ void TouchSensorEnd()
 
 int TouchSensorInterrupt(int pin, int value)
 {
-	static unsigned int oldCounter, onTouchDiffCounter;
+	static unsigned int oldCounter, oldDiffCounter, maxDiffCounter;
 	static int oldTouch, onTouch;
 	if( pin == touchInPin )
 	{	
@@ -175,6 +175,7 @@ int TouchSensorInterrupt(int pin, int value)
 		}
 		else if( startCounter != 0 )
 		{
+			int prevDiff;
 			//電源オン後一回目はstartCounterが0のため数字がおかしくなるのでskip
 			
 			endCounter = GetArmTimer();
@@ -182,10 +183,23 @@ int TouchSensorInterrupt(int pin, int value)
 			diffCounter = endCounter - startCounter;
 			//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t High end mesure capacitance   counter diff: %d\n", diffCounter);
 			
+			prevDiff = oldDiffCounter - diffCounter;
+			oldDiffCounter = diffCounter;
+			
+			//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t old diff: %d\n", prevDiff);
 			//人体の静電容量600pF～100pFのあるなしの充電時間の違いから計算する
-			//接触中は充電(Low)時間が長いので規定以上で接触と判断
-			onTouch = diffCounter>TOUCH_JUDGE ? ON_TOUCH : OFF_TOUCH;
-						
+			//接触中は充電(Low)時間が長いので、前回との充電時間の差が規定以上で接触と判断
+			if( prevDiff > TOUCH_JUDGE )
+			{
+				//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t not touch\n");
+				onTouch = OFF_TOUCH;
+			}
+			else
+			{
+				onTouch = ON_TOUCH;
+			}
+			
+			
 			//以前と違う接触状態なら続行
 			if( onTouch != oldTouch )
 			{
@@ -203,20 +217,20 @@ int TouchSensorInterrupt(int pin, int value)
 					if( oldCounter + OLD_TOUCH < endCounter )
 					{
 						//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t\t Mode Change\n");
-						onTouchCallback(onTouchDiffCounter);
+						onTouchCallback(maxDiffCounter);
 					}
 					oldCounter = endCounter;
 				}
 				else
 				{
 					//タッチ時のcap時間の初期化
-					onTouchDiffCounter = 0;
+					maxDiffCounter = 0;
 				}
 			}
 			//タッチの場合 最大cap時間の更新
-			//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t counter diff: %u, old diff: %u\n", diffCounter, onTouchDiffCounter);
-			if( onTouch == ON_TOUCH && onTouchDiffCounter < diffCounter )
-				onTouchDiffCounter = diffCounter;
+			//SensorLogPrintf(SENSOR_LOG_LEVEL_1, "\t counter diff: %u, old diff: %u\n", diffCounter, maxDiffCounter);
+			if( onTouch == ON_TOUCH && maxDiffCounter < diffCounter )
+				maxDiffCounter = diffCounter;
 		}
 	}
 	return INTERRUPT_CONTINUE;
