@@ -112,7 +112,7 @@ void TouchSensorInterruptCallback(unsigned int cap)
 {	
 	SendShiftRegister( 0x0000 );
 	//MySysLog(LOG_DEBUG, "  cap %u\n", cap);
-	if( cap < 40000 )
+	if( cap < 50000 )
 	{
 		//モードを切り替える
 		
@@ -121,7 +121,7 @@ void TouchSensorInterruptCallback(unsigned int cap)
 		else
 			g_outputMode = MODE_CLOCK;
 	}
-	else if( cap < 60000 )
+	else if( cap < 70000 )
 	{
 		//logをpiのホームディレクトリへ保存
 		
