@@ -204,7 +204,8 @@ void ReciveQueue()
 	PinInit();
 	
 	//ログの処理
-	LogOpen();
+	if( g_debugOpt != DEBUG_OUTPUT )
+		LogOpen();
 	
 	//シグナルの設定
 	if( SIG_ERR == signal(SIGTERM, SignalHandler) )
