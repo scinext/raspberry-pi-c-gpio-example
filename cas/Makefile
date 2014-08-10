@@ -8,7 +8,7 @@ LDFLAGS =-O3 -lrt -lm
 
 #オブジェクト(自動でVPATHから検索される)
 MAIN += main.o
-SRC += mode.o threads.o
+SRC += mode.o threads.o shiftRegister.o
 SENSOR += adConvert.o sensor.o lps331.o touchSensor.o
 GPIO += gpio.o gpio-spi.o gpio-util.o gpio-timer.o gpio-i2c.o gpio-arm-timer.o
 COM_OBJ += $(SRC) $(SENSOR) $(GPIO)

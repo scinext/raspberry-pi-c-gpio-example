@@ -28,13 +28,13 @@
 #include "main.h"
 #include "mode.h"
 #include "threads.h"
+#include "shiftRegister.h"
 
 //モード変更のタッチセンサ
 #include "../sensor/touchSensor.h"
 
 //スレッド
 int		g_threadStatus;
-int		g_dispData[SEG_COUNT];
 
 //メッセージキュー
 mqd_t	g_mq;
@@ -104,6 +104,9 @@ void SignalHandler(int signum)
 				ScrollOutputInit( SCROLL_EXIT );
 				g_outputMode = MODE_OUTPUT;
 				LogBukup();
+				
+				//行わないとゾンビプロセスが残る
+				exit(EXIT_SUCCESS);
 			}
 			break;
 	}
@@ -112,7 +115,7 @@ void TouchSensorInterruptCallback(unsigned int cap)
 {	
 	SendShiftRegister( 0x0000 );
 	//MySysLog(LOG_DEBUG, "  cap %u\n", cap);
-	if( cap < 50000 )
+	if( cap < 70000 )
 	{
 		//モードを切り替える
 		
@@ -121,7 +124,7 @@ void TouchSensorInterruptCallback(unsigned int cap)
 		else
 			g_outputMode = MODE_CLOCK;
 	}
-	else if( cap < 70000 )
+	else if( cap < 75000 )
 	{
 		//logをpiのホームディレクトリへ保存
 		
@@ -204,8 +207,7 @@ void ReciveQueue()
 	PinInit();
 	
 	//ログの処理
-	if( g_debugOpt != DEBUG_OUTPUT )
-		LogOpen();
+	LogOpen();
 	
 	//シグナルの設定
 	if( SIG_ERR == signal(SIGTERM, SignalHandler) )
@@ -404,7 +406,6 @@ int main(int argc, char *argv[])
 	//システムログのオープン
 	openlog(APPNAME, LOG_PID | LOG_CONS, LOG_DAEMON);
 
-	//Dqrcydptlha:m:o:i:f:
 	if( argc <= 1 )
 	{
 	}
@@ -418,8 +419,8 @@ int main(int argc, char *argv[])
 				printf("-T CPU温度                 -w ログ取得までの時間\n");
 				printf("\n");
 				printf("-a XX アニメーションXX     -m XX XXモードの表示   -o XXXX XXXXを7segに表示(できれば)\n");
-				printf("-i XX データ収集の間隔(s)\n");
-				//printf("-I XX データ収集の間隔(s)  -i XX ログをとる間隔(s)\n");
+				printf("-i XX データ収集の間隔(s) 初期値:%d \n", g_dataInterval);
+				//printf("-i XX ログをとる間隔(s) 初期値:%d \n", g_logInterval);
 				printf("\n");
 				printf("-H これ                    -q 終了                -r プロセスをリセット\n");
 				printf("\n");

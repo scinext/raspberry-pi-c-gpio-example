@@ -8,6 +8,7 @@
 
 #include "main.h"
 #include "mode.h"
+#include "shiftRegister.h"
 
 //ARRAY_SIZE
 #include "../gpio/gpio-util.h"
@@ -20,7 +21,6 @@
 #define YEAR_SWITCH		300
 #define MODE_NAME		2500
 
-extern int		g_dispData[SEG_COUNT];
 
 extern char		g_scrollBuf[SCROLL_BUF];
 
@@ -34,6 +34,8 @@ extern struct timespec	g_waitLog;
 
 //古いモード
 int g_oldMode;
+//各種モードでの古いfloat値
+float oldFloatData;
 
 //年、日付、時間で共通利用する
 struct tm *g_ts;
@@ -154,120 +156,39 @@ void DispModeData(int mode)
 	}
 	return;
 }
-void ReverseInsert(char *buf)
-{
-	int i;
-	for(i=0; i<SEG_COUNT; i++)
-	{
-		//一番下から
-		switch( buf[3-i] )
-		{
-			//数字
-			case '0': g_dispData[i] = SEG_NUM_0;	break;
-			case '1': g_dispData[i] = SEG_NUM_1;	break;
-			case '2': g_dispData[i] = SEG_NUM_2;	break;
-			case '3': g_dispData[i] = SEG_NUM_3;	break;
-			case '4': g_dispData[i] = SEG_NUM_4;	break;
-			case '5': g_dispData[i] = SEG_NUM_5;	break;
-			case '6': g_dispData[i] = SEG_NUM_6;	break;
-			case '7': g_dispData[i] = SEG_NUM_7;	break;
-			case '8': g_dispData[i] = SEG_NUM_8;	break;
-			case '9': g_dispData[i] = SEG_NUM_9;	break;
-			//アルファベット
-			case 'a':
-			case 'A': g_dispData[i] = SEG_ALPHA_A;	break;
-			case 'b':
-			case 'B': g_dispData[i] = SEG_ALPHA_B;	break;
-			case 'c':
-			case 'C': g_dispData[i] = SEG_ALPHA_C;	break;
-			case 'd':
-			case 'D': g_dispData[i] = SEG_ALPHA_D;	break;
-			case 'e':
-			case 'E': g_dispData[i] = SEG_ALPHA_E;	break;
-			case 'f':
-			case 'F': g_dispData[i] = SEG_ALPHA_F;	break;
-			case 'g':
-			case 'G': g_dispData[i] = SEG_ALPHA_G;	break;
-			case 'h':
-			case 'H': g_dispData[i] = SEG_ALPHA_H;	break;
-			case 'i':
-			case 'I': g_dispData[i] = SEG_ALPHA_I;	break;
-			case 'j':
-			case 'J': g_dispData[i] = SEG_ALPHA_J;	break;
-			case 'k':
-			case 'K': g_dispData[i] = SEG_ALPHA_K;	break;
-			case 'l':
-			case 'L': g_dispData[i] = SEG_ALPHA_L;	break;
-			case 'm':
-			case 'M': g_dispData[i] = SEG_ALPHA_M;	break;
-			case 'n':
-			case 'N': g_dispData[i] = SEG_ALPHA_N;	break;
-			case 'o':
-			case 'O': g_dispData[i] = SEG_ALPHA_O;	break;
-			case 'p':
-			case 'P': g_dispData[i] = SEG_ALPHA_P;	break;
-			case 'q':
-			case 'Q': g_dispData[i] = SEG_ALPHA_Q;	break;
-			case 'r':
-			case 'R': g_dispData[i] = SEG_ALPHA_R;	break;
-			case 's':
-			case 'S': g_dispData[i] = SEG_ALPHA_S;	break;
-			case 't':
-			case 'T': g_dispData[i] = SEG_ALPHA_T;	break;
-			case 'u':
-			case 'U': g_dispData[i] = SEG_ALPHA_U;	break;
-			case 'v':
-			case 'V': g_dispData[i] = SEG_ALPHA_V;	break;
-			case 'w':
-			case 'W': g_dispData[i] = SEG_ALPHA_W;	break;
-			case 'x':
-			case 'X': g_dispData[i] = SEG_ALPHA_X;	break;
-			case 'y':
-			case 'Y': g_dispData[i] = SEG_ALPHA_Y;	break;
-			case 'z':
-			case 'Z': g_dispData[i] = SEG_ALPHA_Z;	break;
-			//記号
-			case '-': g_dispData[i] = SEG_SYMBOL_HYPHEN;	break;
-			case '_': g_dispData[i] = SEG_SYMBOL_UNDER_BAR;	break;
-			default: g_dispData[i] = 0;
-		}
-		g_dispData[i] |= (DIGIT_1>>i);
-	}
-	return;
-}
-
 void BlinkDp(int digit, int blinkInterval)
 {
 	static char blinkDpToggle;
-	static int old_loopCounter;
+	//static int old_loopCounter;
 
-	if( old_loopCounter != g_loopCounter)
-	{
-		old_loopCounter = g_loopCounter;
-		if( (g_loopCounter % blinkInterval) == 0)
-			blinkDpToggle ^= 0x1;
-	}
-
+	//if( old_loopCounter != g_loopCounter)
+	//{
+	//	old_loopCounter = g_loopCounter;
+	//	if( (g_loopCounter % blinkInterval) == 0)
+	//		blinkDpToggle ^= 0x1;
+	//}
+	if( (g_loopCounter % blinkInterval) == 0)
+		blinkDpToggle ^= 0x1;
+			
 	if( (blinkDpToggle & 0x1) == 1 )
-		g_dispData[digit] |= SEG_DP;
+		SetDP(digit, DP_ON);
 	else
-		g_dispData[digit] &= ~(SEG_DP);
+		SetDP(digit, DP_OFF);
+	
 }
 void DispWait()
 {
 	snprintf(g_segBuf, sizeof(g_segBuf), "Wait");
-	ReverseInsert(g_segBuf);
+	Insert7segData(g_segBuf);
 	return;
 }
 void PressMode(int init)
-{
-	static float oldPress;
-	
+{	
 	//1000オーバーは一つの関数で初期化されMODE_START状態になるのを利用
 	if( g_loopCounter > MODE_NAME )
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "Pres");
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 		return;
 	}
 	
@@ -278,16 +199,16 @@ void PressMode(int init)
 		return;
 	}
 
-	if( oldPress != g_press || init == MODE_START)
+	if( oldFloatData != g_press || init == MODE_START)
 	{
 		if( g_press < 1000 )
 			snprintf(g_segBuf, sizeof(g_segBuf), "%4d", (int)(g_press*10));
 		else
 			snprintf(g_segBuf, sizeof(g_segBuf), "%4d", (int)g_press );
 
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 
-		oldPress = g_press;
+		oldFloatData = g_press;
 	}
 
 	if( g_press < 1000 )
@@ -296,8 +217,6 @@ void PressMode(int init)
 }
 void TempMode(int init)
 {
-	static float oldTemp;
-
 	if( g_temp == INIT_SENSOR )
 	{
 		//g_temp = GetTemp();
@@ -305,25 +224,24 @@ void TempMode(int init)
 		return;
 	}
 
-	if( oldTemp != g_temp || init == MODE_START)
+	if( oldFloatData != g_temp || init == MODE_START)
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "%3dC", (int)(g_temp*10));
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 
-		oldTemp = g_temp;
+		oldFloatData = g_temp;
 	}
 
 	BlinkDp(2, CLOCK_DP_BLINK);
 }
 void LuxMode(int init)
 {
-	static float oldLux;
 	static int dpDigit;
 
 	if( g_loopCounter > MODE_NAME )
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "Lux");
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 		return;
 	}
 	
@@ -333,7 +251,7 @@ void LuxMode(int init)
 		return;
 	}
 
-	if( oldLux != g_lux || init == MODE_START)
+	if( oldFloatData != g_lux || init == MODE_START)
 	{
 		if( g_lux > 1000 )
 		{
@@ -359,9 +277,9 @@ void LuxMode(int init)
 			snprintf(g_segBuf, sizeof(g_segBuf), "%4d", (int)(g_lux*10) );
 			dpDigit = 1;
 		}
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 
-		oldLux = g_lux;
+		oldFloatData = g_lux;
 	}
 	if( g_lux < 1000 )
 		BlinkDp(dpDigit, CLOCK_DP_BLINK);
@@ -369,12 +287,10 @@ void LuxMode(int init)
 }
 void HumMode(int init)
 {
-	static float oldHum;
-
 	if( g_loopCounter > MODE_NAME )
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "Hum");
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 		return;
 	}
 	
@@ -385,12 +301,12 @@ void HumMode(int init)
 		return;
 	}
 	
-	if( oldHum != g_hum || init == MODE_START)
+	if( oldFloatData != g_hum || init == MODE_START)
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "%4d", (int)(g_hum*10));
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 
-		oldHum == g_hum;
+		oldFloatData == g_hum;
 	}
 	BlinkDp(1, CLOCK_DP_BLINK);
 
@@ -398,12 +314,10 @@ void HumMode(int init)
 }
 void CoreTemp(int init)
 {
-	static float oldCoreTemp;
-
 	if( g_loopCounter > MODE_NAME )
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "Ctmp");
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 		return;
 	}
 	
@@ -413,12 +327,12 @@ void CoreTemp(int init)
 		return;
 	}
 	
-	if( oldCoreTemp != g_coreTemp || init == MODE_START)
+	if( oldFloatData != g_coreTemp || init == MODE_START)
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "%3dC", (int)(g_coreTemp*10));
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 
-		oldCoreTemp = g_coreTemp;
+		oldFloatData = g_coreTemp;
 	}
 	BlinkDp(2, CLOCK_DP_BLINK);
 }
@@ -448,7 +362,7 @@ void YearMode(int init)
 		//printf("%s\n", g_segBuf);
 	}
 
-	ReverseInsert(g_segBuf);
+	Insert7segData(g_segBuf);
 }
 void DateMode(int init)
 {
@@ -457,7 +371,7 @@ void DateMode(int init)
 	if( g_loopCounter > MODE_NAME )
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "Date");
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 		return;
 	}
 	
@@ -475,7 +389,7 @@ void DateMode(int init)
 
 		snprintf(g_segBuf, sizeof(g_segBuf), "%2d%2d", month, day);
 		
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 	}
 	
 	//static int dpDigit = SEG_COUNT;
@@ -519,7 +433,7 @@ void ClockMode(int init)
 
 	strftime(g_segBuf, sizeof(g_segBuf), "%k%M", g_ts);
 
-	ReverseInsert(g_segBuf);
+	Insert7segData(g_segBuf);
 }
 
 void ScrollOutputInit(char *buf)
@@ -564,7 +478,7 @@ void ScrollOutput(int init)
 			i = SPACE_LENGTH-1;
 		}
 	}
-	ReverseInsert( &(g_scrollBuf[i]) );
+	Insert7segData( &(g_scrollBuf[i]) );
 }
 
 #define N_TO_NANO			1e+9
@@ -588,7 +502,7 @@ void WaitLogTime(int init)
 	if( g_loopCounter > MODE_NAME )
 	{
 		snprintf(g_segBuf, sizeof(g_segBuf), "next");
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 		return;
 	}
 
@@ -623,11 +537,11 @@ void WaitLogTime(int init)
 		}
 
 		snprintf(g_segBuf, sizeof(g_segBuf), "%4d", waitTime);
-		ReverseInsert(g_segBuf);
+		Insert7segData(g_segBuf);
 		oldElapsedTime = elapsedTime;
 	}
-	if( waitTime < 1000 )
-		g_dispData[1] |= SEG_DP;
+	if( waitTime < 10000 )
+		SetDP(1, DP_ON); //g_dispData[1] |= SEG_DP;
 }
 
 
@@ -692,16 +606,16 @@ void AnimationMode(int mode)
 	{
 		case MODE_ANI_2:
 			{
-				SendShiftRegister( ani3[g_loopCounter++] );
-				if( g_loopCounter >= sizeof(ani3)/sizeof(ani3[0]) )
+				Send7Seg(ani3[g_loopCounter], g_aniSpeed);
+				if( ++g_loopCounter >= sizeof(ani3)/sizeof(ani3[0]) )
 					g_loopCounter = 0;
-				usleep(g_aniSpeed);
 			}
 			break;
 		case MODE_ANI_1:
 			{
-				SendShiftRegister( ani1[animationCounter][digitCounter++] );
-				if(digitCounter >= ARRAY_SIZE(ani1[0]) )
+				//BoundSpeed(2500, 7000, 5);
+				Send7Seg( ani1[animationCounter][digitCounter], g_aniSpeed);
+				if( ++digitCounter >= ARRAY_SIZE(ani1[0]) )
 				{
 					++g_loopCounter;
 					digitCounter = 0;
@@ -713,20 +627,15 @@ void AnimationMode(int mode)
 				}
 				if( animationCounter >= ARRAY_SIZE(ani1) )
 					animationCounter = 0;
-
-				//BoundSpeed(2500, 7000, 5);
-				usleep(g_aniSpeed);
 			}
 			break;
 		case MODE_ANI_0:
 		default:
 			{
-				SendShiftRegister( ani0[g_loopCounter++] );
-				if( g_loopCounter >= sizeof(ani0)/sizeof(ani0[0]) )
-					g_loopCounter = 0;
-
 				//BoundSpeed(30000, 100000, 800);
-				usleep(g_aniSpeed);
+				Send7Seg( ani0[g_loopCounter], g_aniSpeed);
+				if( ++g_loopCounter >= sizeof(ani0)/sizeof(ani0[0]) )
+					g_loopCounter = 0;
 			}
 			break;
 	}
