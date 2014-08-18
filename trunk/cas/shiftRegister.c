@@ -30,7 +30,7 @@ void InitShiftRegister()
 	InitPin(st, PIN_OUT);
 	InitPin(sh, PIN_OUT);
 }
-void UninitShiftRegister()
+void UnInitShiftRegister()
 {
 	//消灯
 	SendShiftRegister( 0x0000 );

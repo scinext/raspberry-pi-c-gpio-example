@@ -105,6 +105,16 @@ void SignalHandler(int signum)
 				g_outputMode = MODE_OUTPUT;
 				LogBukup();
 				
+				sleep(1);
+				
+				//終了時の消灯を利用する
+				UnInitShiftRegister();
+		
+				//強制的にロックファイルとメッセージキューを削除してすぐに終わる
+				UnInitServeRecive(SERVER_PROCESS);
+		
+				MySysLog(LOG_DEBUG, "sigterm \n");
+				
 				//行わないとゾンビプロセスが残る
 				exit(EXIT_SUCCESS);
 			}
@@ -509,10 +519,11 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		//終了時の消灯を利用する
 		InitGpio();
 		InitShiftRegister();
-		UninitShiftRegister();
+		
+		//終了時の消灯を利用する
+		UnInitShiftRegister();
 
 		//強制的にロックファイルとメッセージキューを削除してすぐに終わる
 		UnInitServeRecive(SERVER_PROCESS);
