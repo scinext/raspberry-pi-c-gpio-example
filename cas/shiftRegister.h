@@ -11,7 +11,7 @@ void Insert7segData(char *buf);
 void Dips7segData();
 
 void InitShiftRegister();
-void UninitShiftRegister();
+void UnInitShiftRegister();
 //16bit(8bitシフトレジスタを2つ分)使用して7segをコントロール
 //下位8bitが数字, 上位8bitが桁(同じ数字なら複数桁可能
 void SendShiftRegister(unsigned int dispNum);

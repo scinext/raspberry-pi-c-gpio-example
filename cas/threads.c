@@ -34,7 +34,7 @@
 
 //スレッド
 extern int		g_threadStatus;
-extern int		g_dispData[SEG_COUNT];
+//extern int		g_dispData[SEG_COUNT];
 
 extern int		g_debugOpt;
 
@@ -89,7 +89,7 @@ void* DispDataThread(void* param)
 	}while( 1 );
 	SetPriority(NOMAL_PRIO);
 
-	UninitShiftRegister();
+	UnInitShiftRegister();
 
 	g_threadStatus = 0;
 
