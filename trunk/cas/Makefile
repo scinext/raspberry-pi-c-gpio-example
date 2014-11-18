@@ -3,8 +3,8 @@
 #コンパイラフラグ
 CFLAGS =-g -O3
 
-#-lrt(getclock_, POSIXメッセージキュー) -lm(math.h)
-LDFLAGS =-O3 -lrt -lm
+#-lrt(getclock_, POSIXメッセージキュー) -lm(math.h) -lpthread(pthread_join)
+LDFLAGS =-O3 -lrt -lm -lpthread
 
 #オブジェクト(自動でVPATHから検索される)
 MAIN += main.o
