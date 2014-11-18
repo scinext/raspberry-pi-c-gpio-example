@@ -11,7 +11,7 @@ void* DispDataThread(void *param);
 int SetSignalBlock(sigset_t *ss);
 //センサからデータを取得
 void* SensorDataThread(void *param);
-void SensorLog();
+//void SensorLog();
 
 
 //logのバックアップ
