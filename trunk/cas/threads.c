@@ -125,7 +125,7 @@ void* SensorDataThread(void *param)
 	siginfo_t	sig;
 	struct timespec timeOut;
 	int sigNo;
-	//int oldOutputMode = MODE_CLOCK;
+	int oldOutputMode = MODE_CLOCK;
 	unsigned int i;
 	const unsigned int dpSleepTime = 100000;
 
@@ -133,7 +133,7 @@ void* SensorDataThread(void *param)
 	time_t 		t;
 	struct tm 	*ts;
 	char		dateBuf[20];
-	
+
 	//シグナルのタイムアウト
 	timeOut.tv_sec = g_dataInterval;
 	timeOut.tv_nsec = 0;
@@ -149,15 +149,15 @@ void* SensorDataThread(void *param)
 			MySysLog(LOG_DEBUG, "Data Thread exit signal\n");
 			break;
 		}
-		////センサー間隔が1分以上はセンサー実行時アニメーションモードにする
-		//if( g_dataInterval >= 60 )
-		//{
-		//	oldOutputMode	= g_outputMode;
-		//	g_outputMode	= MODE_ANI_0;
-		//}
-		
+		//センサー間隔が1分以上はセンサー実行時アニメーションモードにする
+		if( g_dataInterval >= 60 )
+		{
+			oldOutputMode	= g_outputMode;
+			g_outputMode	= MODE_ANI_0;
+		}
+
 		//DPの桁
-		
+
 		//sensorが何かで止まるので個別にログを取ってどこで止まるか確認
 		//log用の時間
 		t  = time(NULL);
@@ -165,28 +165,28 @@ void* SensorDataThread(void *param)
 		//strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
 		strftime(dateBuf, sizeof(dateBuf), "%T", ts);
 		SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%s\t",		dateBuf);		//時刻
-		
+
 		i = 0;
 		//Lps331をone shotモードでたたき起こす
-			SetDP(i++, DP_ON);
+			//SetDP(i++, DP_ON);
 			usleep(dpSleepTime);
 			WakeUpLps331();
 
 		//外気温
-			SetDP(i++, DP_ON);
+			//SetDP(i++, DP_ON);
 			usleep(dpSleepTime);
 			g_temp	= GetTemp();
 			SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%.1f\t", 	g_temp);		//外気温
 
 		//気圧
-			SetDP(i++, DP_ON);
+			//SetDP(i++, DP_ON);
 			usleep(dpSleepTime);
 			g_press	= GetPress();
-			
+
 			SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%.1f\t",	g_press);		//大気圧
 
 		//照度
-			SetDP(i++, DP_ON);
+			//SetDP(i++, DP_ON);
 			usleep(dpSleepTime);
 			//g_lux   = GetLuxOhm(100e+3); //100kohm
 			g_lux	= GetLux();
@@ -199,22 +199,26 @@ void* SensorDataThread(void *param)
 		//湿度
 			g_hum	= GetHumidity();
 			SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%.1f\t",	g_hum);			//湿度
-			
+
 
 		//CPU温度
 			g_coreTemp = GetCoreTemp();
 			SensorLogPrintf(SENSOR_LOG_LEVEL_0, 	"%.1f\n",	g_coreTemp);	//CPU温度
 
-		////モードを元に戻す
-		//if( g_dataInterval >= 60 )
-		//	g_outputMode = oldOutputMode;
+
 		usleep(dpSleepTime);
-		for( i=0; i<SEG_COUNT; i++)
-			SetDP(i, DP_OFF);
+		//for( i=0; i<SEG_COUNT; i++)
+		//	SetDP(i, DP_OFF);
 			//g_dispData[i] &= ~(SEG_DP);
+
 
 		////正常にデータ取得後データの保存
 		//SensorLog();
+
+
+		//モードを元に戻す
+		if( g_dataInterval >= 60 )
+			g_outputMode = oldOutputMode;
 
 		//残り時間用に現在の時間の取得
 		clock_gettime(CLOCK_MONOTONIC, &g_waitLog);
@@ -323,7 +327,7 @@ void LogOpen()
 		MySysLog(LOG_DEBUG, "%s\n", LOG_OPEN_ZIP);
 		return;
 	}
-	
+
 	//logのzipファイルの存在確認
 	exist = stat(LOG_ZIP, &status);
 	if( exist == -1 )
