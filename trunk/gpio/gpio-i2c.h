@@ -8,7 +8,7 @@
 
 
 //#define I2C_DEBUG
-#ifdef I2C_DEBUG
+#if defined(I2C_DEBUG) || defined(GPIO_DEBUG)
 	#define I2cDprintf	printf
 #else
 	#define I2cDprintf

@@ -28,7 +28,7 @@ void PrintSpiRegister()
 	PrintRegStatus(stdout, spi, SPI_CLOCK,	"SPI_CLOCK       ",	0);
 	PrintRegStatus(stdout, spi, SPI_DLEN,	"SPI_DLEN        ",	0);
 }
-void PrintSpiRegisterNoFIFO(int log)
+void PrintSpiRegisterCS(int log)
 {
 	FILE *fp;
 	if( log == 0 )
@@ -37,8 +37,8 @@ void PrintSpiRegisterNoFIFO(int log)
 		fp = NULL;
 		
 	PrintRegStatus(fp, spi, SPI_CS,		"SPI_CS          ",	1);
-	PrintRegStatus(fp, spi, SPI_CLOCK,	"SPI_CLOCK       ",	0);
-	PrintRegStatus(fp, spi, SPI_DLEN,	"SPI_DLEN        ",	0);
+	//PrintRegStatus(fp, spi, SPI_CLOCK,	"SPI_CLOCK       ",	0);
+	//PrintRegStatus(fp, spi, SPI_DLEN,	"SPI_DLEN        ",	0);
 }
 int InitSpi()
 {
@@ -197,8 +197,56 @@ void SpiSetReadMode()
 	return;
 }
 
+int SpiError(int errorNo)
+{
+	//error処理時
+	time_t 		t;
+	struct tm 	*ts;
+	char		dateBuf[20];
+	
+	if( errorNo == SPI_NO_DATA )
+	{
+		PrintLog(NULL, "spi no data\n");
+		return -1;
+	}
+		
+	t  = time(NULL);
+	ts = localtime(&t);
+	strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
+	PrintLog(NULL, "%s spi uncomplete transfer\n", dateBuf);
+	
+	switch(errorNo)
+	{
+		case SPI_TXD_ERROR:
+			PrintLog(NULL, "\t spi not TXD(bit-%d) flag==1\n", SPI_CS_REGISTER_TXD);
+			break;
+		case SPI_POLLING_ERROR:
+			PrintLog(NULL, "\t spi RXD polling miss RXD(bit-%d) DONE(bit-%d)\n",
+				SPI_CS_REGISTER_RXD, SPI_CS_REGISTER_DONE);
+			break;
+		case SPI_DONE_ERROR:
+			PrintLog(NULL, "\t spi not DONE(bit-%d) flag==1\n", SPI_CS_REGISTER_DONE);
+			break;
+		default:
+			PrintLog(NULL, "\t spi other error\n");
+			break;
+	}
+	PrintLog(NULL, "spi register\n");
+	PrintSpiRegisterCS(1);
+	
+	PrintLog(NULL, "spi register clear\n");
+	SpiClear(SPI_CLR_ALL);
+	SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 0);
+	
+	PrintLog(NULL, "spi register\n");
+	PrintSpiRegisterCS(1);
+	return SPI_TRANSFER_ERROR;
+}
+
+
 uint32_t SpiTransfer(uint8_t td)
 {
+
 	//Polled(ポーリング bcm2835はこの方法っぽい)
 	//	1.CS, CPOL, CPHA(チップとSPIモードの設定)をしてTAを1にする
 	//	2.TXDにデータを書込んだりRXDからデータを読み取る(FIFOレジスタが送信時-TX、受信時-RXになる)
@@ -256,12 +304,13 @@ int SpiTransferMulitple(uint8_t *td, uint8_t *rd, unsigned int len)
 	//	#define SPI_CS_REGISTER_RXD			17	//RX contains Data 0->空 1->1byte以上は入ってる
 	//	#define SPI_CS_REGISTER_DONE		16	//transfer Done
 	unsigned int i;
-
+	unsigned int spiStartCounter, diffCounter;
+	
+	
 	if( len < 0 )
-	{
-		perror("not data");
-		return;
-	}
+		return SpiError(SPI_NO_DATA);
+	
+	
 	SpiDprintf("spi transfer length %d\n", len);
 	//TXとRXのクリア
 	SpiClear(SPI_CLR_ALL);
@@ -269,78 +318,81 @@ int SpiTransferMulitple(uint8_t *td, uint8_t *rd, unsigned int len)
 	//TAを1に
 	SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 1);
 
+	diffCounter = 0;
+	spiStartCounter = GetArmTimer();
+	
 	for(i=0; i<len; i++)
 	{
-		SpiDprintf("\tsend td[%d]\n");
+		SpiDprintf("\tsend td[%d]\n", i);
 
-		SpiDprintf("\t\twait TXD(bit-%d)->1\n", i, SPI_CS_REGISTER_TXD);
+		SpiDprintf("\t\twait TXD(bit-%d)->1\n", SPI_CS_REGISTER_TXD);
 		//TXDフラグが1になるまで(0の間は待機)
 		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TXD, 1)==0 )
-			;
-
+		{
+			//PrintSpiRegisterCS(0);
+			if( GetArmTimer() - spiStartCounter > SPI_LIMIT_ARM_COUNTER )
+				return SpiError(SPI_TXD_ERROR);
+		}
+		
+		//PrintSpiRegisterCS(0);
 		//FIFOに書き込む
 		SpiDprintf("\t\twrite SPI_FIFO 0x%x td %d\n", (spi+SPI_FIFO), td[i]);
 		*(spi+SPI_FIFO) = td[i];
-
-		//PrintSpiRegisterNoFIFO(0);
+		//PrintSpiRegisterCS(0);
 
 		//_RXDフラグが1になるまで(0の間は待機)
+		//PrintSpiRegisterCS(0);
 		SpiDprintf("\t\twait RXD(bit-%d)->1\n", SPI_CS_REGISTER_RXD);
 		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_RXD, 1) == 0 )
 		{
+			//PrintSpiRegisterCS(0);
 			//RXDを見てからDONEを見るとその間にRXDが立つことがあるので先にDONEを見てRXDを見る
 			//受信できていないのにDONEフラグが立った時
+			//エラー処理して終了
 			if( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_DONE, 1) == 1 &&
 				GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_RXD, 1) == 0
 			)
 			{
-				time_t 		t;
-				struct tm 	*ts;
-				char		dateBuf[20];
-				
-				t  = time(NULL);
-				ts = localtime(&t);
-				strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
-				
-				PrintLog(NULL, "%s", dateBuf);
-				PrintLog(NULL, "  spi RXD polling miss RXD(bit-%d) DONE(bit-%d)\n",
-					SPI_CS_REGISTER_RXD, SPI_CS_REGISTER_DONE);
-				PrintSpiRegisterNoFIFO(1);
-				
-				//TAを0にして完了
-				SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 0);
-				return -1;
+				return SpiError(SPI_POLLING_ERROR);
 			}
 		}
-
+		
 		//FIFOから読み込む
 		rd[i] = *(spi+SPI_FIFO);
 		SpiDprintf("\trecive rd[%d]=%d\n\n", i, rd[i]);
 	}
 	SpiDprintf("\tsend complete\n");
+	
 	//DONEフラグが1になるまで(0の間は待機)
 	SpiDprintf("\t\twait DONE(bit-%d)->1\n", SPI_CS_REGISTER_DONE);
 	while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_DONE, 1)==0 )
-		;
+	{
+		//PrintSpiRegisterCS(0);
+		if( GetArmTimer() - spiStartCounter > SPI_LIMIT_ARM_COUNTER )
+			return SpiError(SPI_DONE_ERROR);
+	}
 
 	//TAを0にして完了
 	SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 0);
 
-	SpiDprintf("complete transfer\n");
-	return 0;
+	diffCounter = GetArmTimer();
+	diffCounter = diffCounter - spiStartCounter;
+	SpiDprintf("arm counter %u\n", diffCounter);
+	
+	SpiDprintf("spi complete transfer\n");
+	return diffCounter;
 }
 
 int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len, int pin, unsigned int sleepTime)
 {
 	unsigned int i;
-	unsigned int startCounter, diffCounter;
+	unsigned int startCounter, diffCounter, spiStartCounter;
 	
 	
 	if( len < 0 )
-	{
-		perror("not data");
-		return 0;
-	}
+		return SpiError(SPI_NO_DATA);
+	
+	
 	SpiDprintf("spi transfer length %d\n", len);
 
 	//TXとRXのクリア
@@ -364,14 +416,18 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 	GPIO_SET(pin);
 	DelayArmTimerCounter(sleepTime);
 	
+	spiStartCounter = GetArmTimer();
 	for(i=0; i<len; i++)
 	{
-		SpiDprintf("\tsend td[%d]\n");
+		SpiDprintf("\tsend td[%d]\n", i);
 
-		SpiDprintf("\t\twait TXD(bit-%d)->1\n", i, SPI_CS_REGISTER_TXD);
+		SpiDprintf("\t\twait TXD(bit-%d)->1\n", SPI_CS_REGISTER_TXD);
 		//TXDフラグが1になるまで(0の間は待機)
 		while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TXD, 1)==0 )
-			;
+		{
+			if( GetArmTimer() - spiStartCounter > SPI_LIMIT_ARM_COUNTER )
+				return SpiError(SPI_TXD_ERROR);
+		}
 		
 		//FIFOに書き込む
 		SpiDprintf("\t\twrite SPI_FIFO 0x%x td %d\n", (spi+SPI_FIFO), td[i]);
@@ -379,7 +435,7 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 
 		//コンソールへ出力をするとRXDのポーリングが間に合わず
 		//DONEフラグが立ってRXDが立たず無限ループに陥る
-		//PrintSpiRegisterNoFIFO();
+		//PrintSpiRegisterCS();
 
 		//_RXDフラグが1になるまで(0の間は待機)
 		SpiDprintf("\t\twait RXD(bit-%d)->1\n", SPI_CS_REGISTER_RXD);
@@ -391,22 +447,7 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 				GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_RXD, 1) == 0
 			)
 			{
-				time_t 		t;
-				struct tm 	*ts;
-				char		dateBuf[20];
-				
-				t  = time(NULL);
-				ts = localtime(&t);
-				strftime(dateBuf, sizeof(dateBuf), "%F %T", ts);
-				
-				PrintLog(NULL, "%s", dateBuf);
-				PrintLog(NULL, "  spi RXD polling miss RXD(bit-%d) DONE(bit-%d)\n",
-					SPI_CS_REGISTER_RXD, SPI_CS_REGISTER_DONE);
-				PrintSpiRegisterNoFIFO(1);
-				
-				//TAを0にして完了
-				SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 0);
-				return 0;
+				return SpiError(SPI_POLLING_ERROR);
 			}
 		}
 		
@@ -420,20 +461,25 @@ int SpiTransferMulitpleAndPinHighLow(uint8_t *td, uint8_t *rd, unsigned int len,
 	
 	//pinをLowへ
 	GPIO_CLR(pin);
-	diffCounter = GetArmTimer();
-	diffCounter = diffCounter - startCounter;
-	SpiDprintf("arm counter %u\n", diffCounter);
 	
 	SpiDprintf("\tsend complete\n");
 	//DONEフラグが1になるまで(0の間は待機)
 	SpiDprintf("\t\twait DONE(bit-%d)->1\n", SPI_CS_REGISTER_DONE);
 	while( GetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_DONE, 1)==0 )
-		;
+	{
+		if( GetArmTimer() - spiStartCounter > SPI_LIMIT_ARM_COUNTER )
+			return SpiError(SPI_DONE_ERROR);
+	}
 
 	//TAを0にして完了
 	SetRegisterBit(spi+SPI_CS, SPI_CS_REGISTER_TA, 1, 0);
 
-	SpiDprintf("complete transfer\n");
+	diffCounter = GetArmTimer();
+	diffCounter = diffCounter - startCounter;
+	SpiDprintf("arm counter %u\n", diffCounter);
+	
+	
+	SpiDprintf("spi complete transfer\n");
 
 	//終了時は掛かった計測時間を返すように
 	return diffCounter;

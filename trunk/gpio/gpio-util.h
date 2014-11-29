@@ -7,7 +7,7 @@
 #include <time.h>
 
 //#define UTIL_DEBUG
-#ifdef UTIL_DEBUG
+#if defined(UTIL_DEBUG) || defined(GPIO_DEBUG)
 	#define UtilDprintf printf
 #else
 	#define UtilDprintf

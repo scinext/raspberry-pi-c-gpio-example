@@ -16,6 +16,13 @@
 int InitAD();
 int UnInitAD();
 
+//パディングを使ったデータ送受信かどうか
+#define PADDING_USE	0
+#define PADDING_NO	1
+void SetSPIData(int ch, int noPad);
+
+
+//捨てるlsbを設定
 static inline float AtoDmV(unsigned int ad, int lsbBit)
 {
 	//下位8bitのみと次のデータを使用(取得データの下位bitは精度の問題で捨てる)
@@ -25,7 +32,9 @@ static inline float AtoDmV(unsigned int ad, int lsbBit)
 	return  lsbAd * ((float)VREF / maxAd);
 }
 
-//捨てるlsbを設定
+//AD変換に失敗した場合(恐らく大体spiでエラー)
+#define AD_ERROR	-1
+
 unsigned int GetAD(int ch);
 unsigned int GetADpin(int pin, int ch, unsigned long sleepTime);
 

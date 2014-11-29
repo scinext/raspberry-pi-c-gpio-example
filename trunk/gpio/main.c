@@ -3,11 +3,12 @@
 //getopt
 #include <unistd.h>
 
+//#define GPIO_DEBUG
+
 #include "gpio.h"
 #include "gpio-util.h"
 #include "gpio-spi.h"
 
-#define SYS_TIMER_DEBUG
 #include "gpio-timer.h"
 #include "gpio-i2c.h"
 #include "gpio-arm-timer.h"
@@ -73,6 +74,7 @@ int main(int argc, char** argv)
 	InitGpio();	
 	SetPriority(HIGH_PRIO);
 	
+	
 	switch(mode)
 	{
 		case M_I2C:		I2c(slaveAddress, addr, data, rw);	break;
@@ -121,8 +123,10 @@ void GpioTest()
 	//*/
 	
 	/* spi	
-		SpiTest();
 	//*/
+		InitArmTimer(0);
+		SpiTest();
+		UnInitArmTimer();
 	
 	/*i2c
 		I2cTest();
@@ -361,7 +365,7 @@ void SpiTest()
 	SpiSetClock(1200000);
 	SpiSetWriteMode();
 	
-	PrintSpiRegister();
+	//PrintSpiRegister();
 	
 	
 	ch = 0;
@@ -373,25 +377,32 @@ void SpiTest()
 	tbuf[1] = ch;
 	tbuf[2] = 0;
 	
-	for(j=0; j<1000; j++)
-	{
-		//printf("tbuf data\t: ");
-		//for(i=0; i<3; i++)
-		//	printf(" %02X", tbuf[i]);
-		//printf("\n");
-		
-		//clock_gettime(CLOCK_MONOTONIC, &startTs);
-		
-		SpiTransferMulitple(tbuf, rbuf, 3);
-		
-		//clock_gettime(CLOCK_MONOTONIC, &endTs);
-		//TimeDiff(&startTs, &endTs, 0);
-		
-		//printf("rbuf data\t: ");
-		//for(i=0; i<3; i++)
-		//	printf(" %02X", rbuf[i]);
-		//printf("\n\n");
-	}
+	SpiTransferMulitple(tbuf, rbuf, 3);
+	
+	printf("rbuf ");
+	for(i=0; i<3; i++)
+		printf(" %02X", rbuf[i]);
+	printf("\n");
+	
+	//for(j=0; j<1000; j++)
+	//{
+	//	//printf("tbuf data\t: ");
+	//	//for(i=0; i<3; i++)
+	//	//	printf(" %02X", tbuf[i]);
+	//	//printf("\n");
+	//	
+	//	//clock_gettime(CLOCK_MONOTONIC, &startTs);
+	//	
+	//	SpiTransferMulitple(tbuf, rbuf, 3);
+	//	
+	//	//clock_gettime(CLOCK_MONOTONIC, &endTs);
+	//	//TimeDiff(&startTs, &endTs, 0);
+	//	
+	//	//printf("rbuf data\t: ");
+	//	//for(i=0; i<3; i++)
+	//	//	printf(" %02X", rbuf[i]);
+	//	//printf("\n\n");
+	//}
 	
 	//rbuf[0] = 0;
 	//rbuf[0] = SpiTransfer(tbuf[0]);

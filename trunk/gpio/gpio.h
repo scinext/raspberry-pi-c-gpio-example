@@ -2,12 +2,12 @@
 #ifndef GPIO_H
 #define GPIO_H
 
-#define DEBUG
-
-#ifndef DEBUG
-	#define Dgprintf
-#else
+//#define GPIO_DEBUG
+//#define GPIO_INIT_DEBUG
+#if defined(GPIO_INIT_DEBUG) || defined(GPIO_DEBUG)
 	#define Dgprintf printf
+#else
+	#define Dgprintf
 #endif
 
 #include <stdint.h>

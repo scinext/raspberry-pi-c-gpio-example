@@ -5,7 +5,7 @@
 #include "gpio.h"
 
 //#define SYS_TIMER_DEBUG
-#ifdef SYS_TIMER_DEBUG
+#if defined(SYS_TIMER_DEBUG) || defined(GPIO_DEBUG)
 	#define SysTimerDprintf	printf
 #else
 	#define SysTimerDprintf
