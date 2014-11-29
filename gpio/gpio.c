@@ -42,7 +42,7 @@ void InitGpio()
 	//現在のメモリのファイルポインタの取得
 	if( (mem_fd = open("/dev/mem", O_RDWR | O_SYNC)) < 0 )
 	{
-		printf("can't open /dev/mem: %s\n", strerror(errno));
+		Dgprintf("can't open /dev/mem: %s\n", strerror(errno));
 		exit(-1);
 	}
 
@@ -54,7 +54,7 @@ void InitGpio()
 	//unsignedのため<0判定に引っかかるのでMAP_FAILEDにする if( (long)gpio_map < 0)
 	if( gpio_map == MAP_FAILED )
 	{
-		printf("mmap error %d\n", (int)gpio_map);
+		Dgprintf("mmap error %d\n", (int)gpio_map);
 		exit(-1);
 	}
 	//Dgprintf("mmap GPIO_BASE %s %X\n", strerror(errno), (int32_t)gpio_map);
@@ -70,7 +70,7 @@ void InitGpio()
 
 void InitPin(unsigned int pin, int ioFlag)
 {
-	//printf("init %2d pin-> %d\n", pin, ioFlag);
+	//Dgprintf("init %2d pin-> %d\n", pin, ioFlag);
 	//初期化(実際はIN_GPIOと同じ)
 	INIT_GPIO(pin);
 	switch( ioFlag )
@@ -236,7 +236,7 @@ int GpioInterruptStart()
 	//コールバックがない場合はファイルの読込だけして次の書き込みまで再度待ち状態にする
 	if( gpioInterrupt.callback == NULL )
 	{
-		//printf("no register callback\n");
+		//Dgprintf("no register callback\n");
 		return INTERRUPT_NO_CALLBACK;
 	}
 	pthread_create(&interruptThreadId, NULL, InterruptThread, (void *)NULL);
@@ -259,7 +259,7 @@ void GpioInerruptUnInit()
 	{
 		if( gpioInterrupt.fd[i] != 0 )
 		{
-			//printf("close file discript\n");
+			//Dgprintf("close file discript\n");
 			
 			//ファイルディスクリプタを閉じる
 			close( gpioInterrupt.fd[i] );
@@ -376,7 +376,7 @@ int RegisterInterruptPin(int pin, int edgeType)
 	}
 	//読み込みが必要なイベントの発行をさせるために一度読み込む
 	read(gpioInterrupt.fd[pin], &value, sizeof(char));
-	//printf("pin:%d  fd:%d\n", pin, gpioInterrupt.fd[pin]);
+	//Dgprintf("pin:%d  fd:%d\n", pin, gpioInterrupt.fd[pin]);
 	
 	
 	//event設定
@@ -410,7 +410,7 @@ void* InterruptThread(void *param)
 			break;
 		}
 		//変更があったファイルディスクリプタの一覧から登録している関数を呼び出す
-		//printf("nfds = %d\n", nfds);
+		//Dgprintf("nfds = %d\n", nfds);
 		for(n=0; n<nfds; n++)
 		{
 			//ファイルシークを先頭にして値を読み込む
@@ -420,7 +420,7 @@ void* InterruptThread(void *param)
 			//lseek(gpioInterrupt.fd[i], 0, SEEK_SET);
 			//read(gpioInterrupt.fd[i], &c, sizeof(char));
 			
-			//printf("n=%d  fd=%d \n", n, events[n].data.fd);
+			//Dgprintf("n=%d  fd=%d \n", n, events[n].data.fd);
 			
 			//epollのイベントが来たファイルディスクリプタのpinを検索、コールバック実行
 			for(i=0; i<GPIO_PIN_COUNT; i++)
@@ -430,7 +430,7 @@ void* InterruptThread(void *param)
 					
 				//読み込み値をintへ
 				value = c-'0';
-				//printf("call pin:%d callback value %d\n", i, value);
+				//Dgprintf("call pin:%d callback value %d\n", i, value);
 				
 				//コールバック中1つでも戻り値がINTERRUPT_ENDだったらInterrupt終了
 				if( gpioInterrupt.callback(i, value) == INTERRUPT_END )
@@ -464,14 +464,14 @@ int InitPads()
 
 	if( (mem_fd = open("/dev/mem", O_RDWR | O_SYNC)) < 0 )
 	{
-		printf("can't open /dev/mem: %s\n", strerror(errno));
+		Dgprintf("can't open /dev/mem: %s\n", strerror(errno));
 		return -1;
 	}
 
 	pads_map = (char *)mmap(NULL, BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, PADS_BASE);
 	if( pads_map == MAP_FAILED )
 	{
-		printf("mmap error %s %d\n", strerror(errno), (int)pads_map);
+		Dgprintf("mmap error %s %d\n", strerror(errno), (int)pads_map);
 		return -1;
 	}
 
@@ -480,8 +480,8 @@ int InitPads()
 	pads = (volatile unsigned int *)pads_map;
 
 	
-	printf("gpio base 0x%X\n", (int32_t)gpio);
-	printf("mmap PADS_BASE %s 0x%X\n", strerror(errno), (int32_t)pads);
+	Dgprintf("gpio base 0x%X\n", (int32_t)gpio);
+	Dgprintf("mmap PADS_BASE %s 0x%X\n", strerror(errno), (int32_t)pads);
 
 	PrintRegStatus(stdout, pads, PADS_1,  "0x7e10002c    ",	1);
 	PrintRegStatus(stdout, pads, PADS_2,  "0x7e10002c    ",	0);

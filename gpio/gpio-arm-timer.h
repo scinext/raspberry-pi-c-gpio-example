@@ -5,7 +5,7 @@
 #include "gpio.h"
 
 //#define ARM_TIMER_DEBUG
-#ifdef ARM_TIMER_DEBUG
+#if defined(ARM_TIMER_DEBUG) || defined(GPIO_DEBUG)
 	#define ArmTimerDprintf	printf
 #else
 	#define ArmTimerDprintf

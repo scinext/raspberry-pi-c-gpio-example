@@ -15,6 +15,8 @@ typedef struct{
 #define SENSOR_DEBUG_OUTPUT		1
 #define NO_SENSOR_DEBUG_OUTPUT	0
 
+#define SENSOR_ERROR 99999.0
+
 int SetSensorLogLevel(int level, int console);
 void SensorLogPrintf(int level, const char *str, ...);
 void Drain(int pin, int ch);

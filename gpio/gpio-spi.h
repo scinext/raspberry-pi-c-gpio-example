@@ -8,7 +8,7 @@
 
 
 //#define SPI_DEBUG
-#ifdef SPI_DEBUG
+#if defined(SPI_DEBUG) || defined(GPIO_DEBUG)
 	#define SpiDprintf	printf
 #else
 	#define SpiDprintf
@@ -98,11 +98,13 @@ SPI0 SCLK | GPIO_11 |23  24| GPIO_8  |SPI0 CE0_N
 #define SPI_CE0		P1_24
 #define SPI_CE1		P1_26
 
+#define SPI_LIMIT_ARM_COUNTER	100000
+
 int InitSpi();
 int UnInitSpi();
 
 void PrintSpiRegister();
-void PrintSpiRegisterNoFIFO(int log);
+void PrintSpiRegisterCS(int log);
 
 void SpiSetCS(SpiCsSelect cs);
 void SpiSetMode(SpiMode mode);
@@ -112,6 +114,16 @@ unsigned int SpiSetClock(unsigned int speed);
 
 void SpiSetWriteMode();
 void SpiSetReadMode();
+
+typedef enum _spiErrorNo{
+	SPI_TRANSFER_ERROR	= -1,
+	
+	SPI_NO_DATA = 0,
+	SPI_TXD_ERROR,
+	SPI_POLLING_ERROR,
+	SPI_DONE_ERROR
+}SpiErrorNo;
+int SpiError(int errorNo);
 
 //Polled(ポーリングでの転送)
 uint32_t SpiTransfer(uint8_t td);

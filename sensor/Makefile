@@ -2,7 +2,7 @@
 #コンパイル時のフラグ -g gdbでのデバッグ用 -lrt(getclock_) -lm(math.h)
 CFLAGS =-g -O3
 #リンク時のフラグ
-LDFLAGS =-O3 -lrt -lm 
+LDFLAGS =-O3 -lrt -lm -lpthread
 
 #コンパイルファイル
 MAIN += main.o

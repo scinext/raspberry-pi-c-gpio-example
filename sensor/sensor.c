@@ -275,6 +275,8 @@ unsigned int GetAllDrainVoltage(int pin, int ch, int drainPin, LuxRangeData *ran
 	{
 		Drain(drainPin, ch);
 		ad			= GetADNoPadPin(pin, ch, range->sleepTime*j );
+		if( ad == AD_ERROR )
+			return AD_ERROR;
 
 		diff		= ad - oldAd;
 		sumDiffAd	+= diff;
@@ -311,6 +313,8 @@ unsigned int GetNoDrainVoltage(int pin, int ch, LuxRangeData *range, int quantit
 	{
 		DelayArmTimerCounter( eachSleep );
 		ad		= GetADNoPad(ch);
+		if( ad == AD_ERROR )
+			return AD_ERROR;
 
 		diff		= ad - oldAd;
 		sumDiffAd	+= diff;
@@ -410,6 +414,9 @@ float GetLux()
 		else
 			diffAd = GetNoDrainVoltage(pin, ch, &range[i], quantity);
 
+		if( diffAd == AD_ERROR )
+			return SENSOR_ERROR;
+			
 		if( diffAd == 0 )
 			continue;
 
@@ -500,6 +507,9 @@ float GetLuxOhm(int ohm)
 
 	DelayMicroSecond(sleepTime);
 	adc = GetAD(ch);
+	if( (unsigned int)adc == AD_ERROR )
+		return SENSOR_ERROR;
+	
 	ad = AtoDmV(adc, lsb);
 
 	GPIO_CLR(pin);
@@ -555,6 +565,9 @@ float GetHumidity()
 		//放電用 0.1s
 		DelayMicroSecond(100000);
 		adc = GetAD(ch);
+		if( (unsigned int)adc == AD_ERROR )
+			return SENSOR_ERROR;
+			
 		ad = AtoDmV(adc, AD_LSB);
 		if( adc != 0 )
 		{

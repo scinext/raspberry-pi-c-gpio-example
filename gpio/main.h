@@ -4,7 +4,7 @@
 
 #define DEBUG
 
-#ifndef DEBUG
+#if defined(DEBUG) || defined(GPIO_DEBUG)
 	#define Dprintf
 #else
 	#define Dprintf printf

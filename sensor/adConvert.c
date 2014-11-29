@@ -40,9 +40,6 @@ uint8_t tbuf[3] = {0, };
 //受信用バッファ
 uint8_t rbuf[3] = {0, };
 
-//外向けじゃないのでここで
-void SetSPIData(int ch);
-
 int InitAD()
 {
 	InitSpi();
@@ -60,23 +57,41 @@ int UnInitAD()
 	//UnInitSpi();
 }
 
-void SetSPIData(int ch)
+void SetSPIData(int ch, int noPad)
 {
-	//一つ目の送信バイトの設定
-	tbuf[0] = START_BIT | AD_SINGLE;
-	//chの設定
-	//ch0 000 0 0000
-	//ch1 001 0 0000
-	//ch2 010 0 0000
-	//ch3 011 0 0000
-	//ch4 100 0 0000
-	//ch5 101 0 0000
-	//ch6 110 0 0000
-	//ch7 111 0 0000
-	//4ch以上の場合、1つ前の送信バイトに1を入れる
-	tbuf[0] |= ch>=4 ? 1 : 0;
-	tbuf[1] = ch << SEND_CH_SHIFT;
-	tbuf[2] = 0;
+	int i;
+	//送受信バッファの初期化
+	//本来は送信バッファと受信バッファで別々に初期化するべき
+	//今回は同サイズの為一緒にやってしまう
+	for(i=0; i<ARRAY_SIZE(tbuf); i++)
+	{
+		tbuf[i] = 0;
+		rbuf[i] = 0;
+	}
+	
+	if( noPad == PADDING_USE )
+	{
+		//一つ目の送信バイトの設定
+		tbuf[0] = START_BIT | AD_SINGLE;
+		//chの設定
+		//ch0 000 0 0000
+		//ch1 001 0 0000
+		//ch2 010 0 0000
+		//ch3 011 0 0000
+		//ch4 100 0 0000
+		//ch5 101 0 0000
+		//ch6 110 0 0000
+		//ch7 111 0 0000
+		//4ch以上の場合、1つ前の送信バイトに1を入れる
+		tbuf[0] |= ch>=4 ? 1 : 0;
+		tbuf[1] = ch << SEND_CH_SHIFT;
+		tbuf[2] = 0;
+	}
+	else
+	{
+		//送信データの作成 0b( 11XX X000 )
+		tbuf[0] = 0xC0 | (ch<<3);
+	}
 	
 	//int i;
 	//printf("ch %d\n", ch);
@@ -93,22 +108,26 @@ void SetSPIData(int ch)
 }
 
 unsigned int GetAD(int ch)
-{	
-	SetSPIData(ch);
+{
+	int ret;
+	SetSPIData(ch, PADDING_USE);
 		
-	SpiTransferMulitple(tbuf, rbuf, 3);
+	ret = SpiTransferMulitple(tbuf, rbuf, 3);
 	
 	//printf("rbuf data  : ");
 	//for(i=0; i<ARRAY_SIZE(rbuf); i++)
 	//	printf(" %02X", rbuf[i]);
 	//printf("\n");	
-	return (unsigned int)( ((rbuf[1]&0x0F)<<8) | rbuf[2] );
+	if( ret != SPI_TRANSFER_ERROR )
+		return (unsigned int)( ((rbuf[1]&0x0F)<<8) | rbuf[2] );
+	else
+		return AD_ERROR;
 }
 
 unsigned int GetADpin(int pin, int ch, unsigned long sleepTime)
 {
-	int i;
-	SetSPIData(ch);
+	int ret;
+	SetSPIData(ch, PADDING_USE);
 	
 	/*
 	 * SpiTransferMulitpleAndPinHighLowでの計測
@@ -139,40 +158,39 @@ unsigned int GetADpin(int pin, int ch, unsigned long sleepTime)
 	else
 		sleepTime = 0;
 		
-	SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
+	ret = SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
 	
-	return (unsigned int)( ((rbuf[1]&0x0F)<<8) | rbuf[2] );
+	
+	if( ret != SPI_TRANSFER_ERROR )
+		return (unsigned int)( ((rbuf[1]&0x0F)<<8) | rbuf[2] );
+	else
+		return AD_ERROR;
 }
 
 
 unsigned int GetADNoPad(int ch)
 {
-	int i;
 	unsigned int b;
+	int ret;
 		
-	//送受信バッファの初期化
-	for(i=0; i<ARRAY_SIZE(tbuf); i++)
-	{
-		tbuf[i] = 0;
-		rbuf[i] = 0;
-	}
+	SetSPIData(ch, PADDING_NO);
 	
-	//送信データの作成 0b( 11XX X000 )
-	tbuf[0] = 0xC0 | (ch<<3);
-	
-	SpiTransferMulitple(tbuf, rbuf, 3);
+	ret = SpiTransferMulitple(tbuf, rbuf, 3);
 	
 	b = rbuf[0]<<16 | rbuf[1]<<8 | rbuf[2];
 	
 	//受信データの編集
 	b =	( b & 0x1FFE0 ) >> 5;
-	return b;
+	
+	if( ret != SPI_TRANSFER_ERROR )
+		return b;
+	else
+		return AD_ERROR;
 }
 unsigned int GetADNoPadPin(int pin, int ch, unsigned int sleepTime)
 {
-	int i;
 	unsigned int b;
-	int useTime;
+	int ret;
 	
 	
 	//データシートだと受信したデータを操作しやすい位置に来させるため
@@ -252,25 +270,16 @@ unsigned int GetADNoPadPin(int pin, int ch, unsigned int sleepTime)
 		sleepTime = 0;
 	//printf("sleepTime - measureUseTime %d\n", sleepTime);
 
-	
-	//送受信バッファの初期化
-	for(i=0; i<ARRAY_SIZE(tbuf); i++)
-	{
-		tbuf[i] = 0;
-		rbuf[i] = 0;
-	}
-	
-	//送信データの作成 0b( 11XX X000 )
-	tbuf[0] = 0xC0 | (ch<<3);
+	SetSPIData(ch, PADDING_NO);
 	
 	////送信テスト表示
 	//printf("tbuf data  : ");
 	//b = tbuf[0]<<16 | tbuf[1]<<8 | tbuf[2];
 	//PrintUintDelimiter(stdout, b, 4);
 	
-	SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
-	//useTime = SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
-	//printf("use time %d\n", useTime);
+	ret = SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
+	//ret = SpiTransferMulitpleAndPinHighLow(tbuf, rbuf, ARRAY_SIZE(tbuf), pin, sleepTime);
+	//printf("use time %d\n", ret);
 	
 	b = rbuf[0]<<16 | rbuf[1]<<8 | rbuf[2];
 	////受信テスト表示	
@@ -316,7 +325,11 @@ unsigned int GetADNoPadPin(int pin, int ch, unsigned int sleepTime)
 	//	printf("\n");
 	//	usleep(100000);
 	//}
-	return b;
+	
+	if( ret != SPI_TRANSFER_ERROR )
+		return b;
+	else
+		return AD_ERROR;
 }
 
 #define WAIT_CLOCK_ARM_COUNTER	4

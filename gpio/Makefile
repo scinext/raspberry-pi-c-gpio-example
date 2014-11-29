@@ -1,6 +1,6 @@
 ﻿CC=gcc
 CFLAGS =-g -O3
-LDFLAGS =-O3 -lrt -lm 
+LDFLAGS =-O3 -lrt -lm -lpthread
 
 #コンパイルファイル
 MAIN += main.o
