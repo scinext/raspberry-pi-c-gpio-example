@@ -1,4 +1,6 @@
  
+#define GPIO_DEBUG
+
 #include <stdio.h>
 #include <stdlib.h>
 //open
@@ -19,6 +21,7 @@
 #include "gpio-util.h"
 #include "gpio-timer.h"
 
+
 char *sysTimer_map = NULL;
 volatile unsigned int *sysTimer = NULL;
 
@@ -26,40 +29,67 @@ volatile unsigned int *sysTimer = NULL;
 //ある程度大きい数ならusleepにする
 void DelayMicroSecond(unsigned int delayMicroSecond)
 {
-	uint32_t delayedTime, start, hiCounter;
+	uint32_t delayedTime, start, hiCounter, subCounter;
 	
 	if( sysTimer == NULL || delayMicroSecond == 0)
 		return;
 	
-	//念のため先にハイカウンタを取得
-	hiCounter   = *(sysTimer+SYS_TIMER_CHI);
-	
-	start       = *(sysTimer+SYS_TIMER_CLO);
-	delayedTime = start + delayMicroSecond;
-	SysTimerDprintf("start time %u,  delay %u,  delayed time %u\n", start, delayMicroSecond, delayedTime );
-	
 	//単位はマイクロ?
-	if( delayMicroSecond > SLEEP_LIMIT_1 )
+	
+	//念のため先にハイカウンタを取得
+	//hiCounter   = *(sysTimer+SYS_TIMER_CHI);
+	start       = *(sysTimer+SYS_TIMER_CLO);
+	//ディレイした数字が開始時より少ない場合は桁あふれをしてる
+	delayedTime = start + delayMicroSecond;
+	
+	SysTimerDprintf("start time     %15u\n", start);
+	SysTimerDprintf("  delay        %15u\n", delayMicroSecond);
+	SysTimerDprintf("  delayed time %15u\n", delayedTime);
+	
+	
+	while( delayMicroSecond >= SLEEP_LIMIT_3 )
 	{
-		int waitCountStart;
-		while( delayMicroSecond >= SLEEP_LIMIT_1 )
+		start = *(sysTimer+SYS_TIMER_CLO);
+		usleep(SLEEP_WAIT_3);
+		//桁あふれのチェック
+		if( start < *(sysTimer+SYS_TIMER_CLO) )
 		{
-			waitCountStart		= *(sysTimer+SYS_TIMER_CLO);
-			usleep(SLEEP_WAIT_1);				
-			delayMicroSecond	-= *(sysTimer+SYS_TIMER_CLO) - waitCountStart;
+			subCounter = *(sysTimer+SYS_TIMER_CLO) - start;
 		}
+		else
+		{
+			SysTimerDprintf("  counter overflow\n");
+			subCounter = *(sysTimer+SYS_TIMER_CLO) + (((uint32_t)-1) - start);
+		}
+		delayMicroSecond -= subCounter;
 	}
-	//ディレイした数字が開始時より少ない場合は桁あふれをしてるのでハイカウンタがカウントされるのを待つ
-	if( delayedTime < start )
+	
+	while( delayMicroSecond >= SLEEP_LIMIT_2 )
 	{
-		//ハイカウンタがカウントされるまで待機
-		while( *(sysTimer+SYS_TIMER_CHI) > hiCounter )
-			usleep(SLEEP_WAIT_3); //250us
+		start = *(sysTimer+SYS_TIMER_CLO);
+		usleep(SLEEP_WAIT_2);
+		if( start < *(sysTimer+SYS_TIMER_CLO) )
+			subCounter = *(sysTimer+SYS_TIMER_CLO) - start;
+		else
+			subCounter = *(sysTimer+SYS_TIMER_CLO) + (((uint32_t)-1) - start);
+		delayMicroSecond -= subCounter;
 	}
+	
+	while( delayMicroSecond >= SLEEP_LIMIT_1 )
+	{
+		start = *(sysTimer+SYS_TIMER_CLO);
+		usleep(SLEEP_WAIT_1);
+		if( start < *(sysTimer+SYS_TIMER_CLO) )
+			subCounter = *(sysTimer+SYS_TIMER_CLO) - start;
+		else
+			subCounter = *(sysTimer+SYS_TIMER_CLO) + (((uint32_t)-1) - start);
+		delayMicroSecond -= subCounter;
+	}
+	
 	while( *(sysTimer+SYS_TIMER_CLO) < delayedTime )
 		;
-	
-	//printf("diff %u\n", *(sysTimer+SYS_TIMER_CLO)-start);
+
+	SysTimerDprintf("end time       %15u\n", *(sysTimer+SYS_TIMER_CLO));
 	
 	return;
 }

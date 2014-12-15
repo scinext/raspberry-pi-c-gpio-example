@@ -122,11 +122,11 @@ void GpioTest()
 		InterruptTest();
 	//*/
 	
-	/* spi	
-	//*/
+	/* spi
 		InitArmTimer(0);
 		SpiTest();
 		UnInitArmTimer();
+	//*/
 	
 	/*i2c
 		I2cTest();
@@ -148,10 +148,12 @@ void GpioTest()
 	//*/
 	
 	/* systimer
+	//
+	*/
 		InitSysTimer();
-		SysTimerPrecisionTest();
+		//SysTimerPrecisionTest();
+		DelayMicroSecond(100000);
 		UnInitSysTimer();
-	//*/
 	
 	/* armtimer
 		InitArmTimer(0);
